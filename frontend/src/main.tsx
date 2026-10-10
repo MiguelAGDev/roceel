@@ -3,7 +3,7 @@
 import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { HashRouter, Link, Navigate, NavLink, Route, Routes } from "react-router-dom";
-import { api, consumerHealth, fmtDateTime, useApi } from "./api";
+import { api, consumerHealth, fmtDateTime, useApi, hasTouchCamera } from "./api";
 import { IconAdvisor, IconDashboard, IconOrder, IconScan, IconWarehouse } from "./components/icons";
 import { Loading } from "./components/ui";
 import "./styles.css";

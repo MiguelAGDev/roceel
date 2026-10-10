@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api, catalog, fmtDateTime, fmtQty, fmtSigned, MOVEMENT_LABEL, partLabel, useApi, type LedgerEntry } from "../api";
 
-import { IconAdvisor, IconBack } from "../components/icons";
-import { Async, Badge, ErrorBox, Loading, StockBadges, Tag } from "../components/ui";
+import { IconAdvisor, IconBack, IconHistory } from "../components/icons";
+import { Async, Badge, ErrorBox, Loading, StockBadges, Tag, PartTag } from "../components/ui";
 import { Kpi } from "../components/charts";
 
 const PAGE = 50;
