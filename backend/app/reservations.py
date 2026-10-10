@@ -60,6 +60,26 @@ def release_excess(conn, wo_id: int, bom_line_id: int, excess: int, at: str) -> 
         excess -= take
 
 
+def release_need(conn, wo_id: int, bom_line_id: int, at) -> None:
+    """Deja sin efecto la necesidad de una línea (inspección anulada u orden dada de baja): libera sus
+    reservas activas (lo ya entregado se conserva), cierra su faltante abierto y la marca `released`.
+    No emite eventos (contrato, regla 15)."""
+    conn.execute(
+        """SELECT release_reservation(reservation_id, %s::timestamptz) FROM reservations
+            WHERE work_order_id = %s AND bom_line_id = %s AND status = 'active'""",
+        (at, wo_id, bom_line_id),
+    )
+    conn.execute(
+        """UPDATE shortages SET status = 'closed', closed_at = %s::timestamptz
+            WHERE work_order_id = %s AND bom_line_id = %s AND status = 'open'""",
+        (at, wo_id, bom_line_id),
+    )
+    conn.execute(
+        "UPDATE needs SET status = 'released', updated_at = %s::timestamptz WHERE work_order_id = %s AND bom_line_id = %s",
+        (at, wo_id, bom_line_id),
+    )
+
+
 def sync_shortage(conn, wo_id, code, bom_line_id, part_id, name, kind, missing, inspection_id, item_id, at) -> None:
     """Deja el faltante abierto de la línea igual a `missing` (None = cantidad desconocida,
     0 = ya no falta nada). Emite stock.shortage_detected cuando nace o cambia."""

@@ -6,7 +6,7 @@ from decimal import Decimal
 from .domain import RECEIVING_LOCATION_ID, MissingDependency, key_for_purchase_line
 from .ledger import lock_part, post_receipt
 from .outbox import emit
-from .reservations import reconcile_need, refresh_reorder
+from .reservations import reconcile_need, refresh_reorder, release_need
 
 
 def part_upserted(conn, env):
@@ -176,6 +176,10 @@ def inspection_approved(conn, env):
     """Solo una aprobación crea necesidad. Cada línea `buy` fija la necesidad de su línea."""
     d, code, at = env["data"], env["key"], env["occurred_at"]
     store_inspection(conn, env, "approved")
+    # Una orden dada de baja no reserva nada. La aprobación puede llegar después de la baja (son
+    # tópicos distintos); sin esta guarda el resultado dependería del orden de llegada.
+    if conn.execute("SELECT deleted_at IS NOT NULL FROM work_orders WHERE work_order_id = %s", (d["work_order_id"],)).fetchone()[0]:
+        return
 
     buy = [it for it in d["items"] if it["action"] == "buy"]
     # Todo lo que referencia debe existir ya; si no, el evento espera (regla 20) en vez de
@@ -204,6 +208,49 @@ def inspection_approved(conn, env):
         refresh_reorder(conn, part_id, at)
 
 
+def release_needs(conn, needs, at) -> None:
+    """Libera una lista de necesidades [(orden, línea, pieza)], con el candado de cada pieza (en orden
+    ascendente) y la sugerencia de compra de cada una revisada al final."""
+    parts = sorted({part_id for _, _, part_id in needs if part_id is not None})
+    for part_id in parts:
+        lock_part(conn, part_id)
+    for wo_id, bom_line_id, _ in needs:
+        release_need(conn, wo_id, bom_line_id, at)
+    for part_id in parts:
+        refresh_reorder(conn, part_id, at)  # emite solo si la sugerencia cambia (regla 18)
+
+
+_mark_voided = inspection_closed("voided")
+
+
+def inspection_voided(conn, env):
+    """Se anula una inspección ya aprobada: se libera lo que pidió, pero solo las líneas cuya
+    necesidad vigente vino de ella (una aprobación posterior que repitió la línea la conserva)."""
+    _mark_voided(conn, env)
+    needs = conn.execute(
+        "SELECT work_order_id, bom_line_id, part_id FROM needs WHERE inspection_id = %s AND status = 'active' ORDER BY bom_line_id",
+        (env["data"]["inspection_id"],),
+    ).fetchall()
+    release_needs(conn, needs, env["occurred_at"])
+
+
+def work_order_deleted(conn, env):
+    """Se da de baja una orden: se libera todo lo suyo. Una compra que llegue después con su código
+    entra como existencia general (fill_shortages ya ignora las órdenes dadas de baja)."""
+    d, at = env["data"], env["occurred_at"]
+    cur = conn.execute(
+        "UPDATE work_orders SET deleted_at = COALESCE(deleted_at, %s::timestamptz) WHERE work_order_id = %s",
+        (at, d["work_order_id"]),
+    )
+    if cur.rowcount == 0:
+        raise MissingDependency(f"orden {d['work_order_id']} no existe")
+    needs = conn.execute(
+        "SELECT work_order_id, bom_line_id, part_id FROM needs WHERE work_order_id = %s AND status = 'active' ORDER BY bom_line_id",
+        (d["work_order_id"],),
+    ).fetchall()
+    release_needs(conn, needs, at)
+
+
 # Los demás tipos de evento se agregan aquí conforme se implementen.
 HANDLERS = {
     "purchase.item_received": purchase_item_received,
@@ -216,4 +263,6 @@ HANDLERS = {
     "inspection.approved": inspection_approved,
     "inspection.rejected": inspection_closed("rejected"),
     "inspection.discarded": inspection_closed("discarded"),
+    "inspection.voided": inspection_voided,
+    "work_order.deleted": work_order_deleted,
 }
