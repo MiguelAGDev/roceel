@@ -50,6 +50,6 @@ saldo*.json
 *.jsonl
 
 # Keep repo-owned data and contract files tracked
-!data/events.jsonl
-!contract/**
-!labels/**
+!kit/data/events.jsonl
+!kit/contract/**
+!kit/labels/**
