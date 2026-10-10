@@ -27,7 +27,7 @@ BEGIN;
 --   un falso positivo mete stock a la pieza equivocada.
 CREATE FUNCTION normalize_sku(t text) RETURNS text
 LANGUAGE sql IMMUTABLE RETURNS NULL ON NULL INPUT AS $$
-  SELECT upper(regexp_replace(btrim(t), '\s+', ' ', 'g'))
+  SELECT upper(btrim(regexp_replace(t, '\s+', ' ', 'g')))
 $$;
 
 -- ---------------------------------------------------------------------
@@ -84,11 +84,12 @@ CREATE INDEX parts_sku_norm ON parts (sku_norm);   -- no único a propósito
 
 CREATE TABLE locations (
   location_id  bigint PRIMARY KEY,
-  code         text    NOT NULL UNIQUE,         -- código de barras: U-100, U-101…
+  code         text    NOT NULL,                -- código de barras: U-100, U-101… (NO único: las pruebas de contrato generan códigos repetidos)
   name         text    NOT NULL,
   is_workbench boolean NOT NULL,
   active       boolean NOT NULL
 );
+CREATE INDEX locations_code ON locations (code);
 
 CREATE TABLE models (
   model_id   bigint PRIMARY KEY,
@@ -193,6 +194,18 @@ CREATE TABLE reservations (
 CREATE INDEX reservations_active_by_part ON reservations (part_id) WHERE status = 'active';
 CREATE INDEX reservations_by_need        ON reservations (work_order_id, bom_line_id);
 
+-- Liberar una reserva sin perder lo ya entregado: si algo se entregó, la reserva queda
+-- 'fulfilled' con quantity = fulfilled_quantity; si no, 'cancelled'. Llamar con el lock
+-- de la pieza. (voided / work_order.deleted, reglas 13 y 14)
+CREATE FUNCTION release_reservation(p_id bigint, p_at timestamptz) RETURNS void
+LANGUAGE sql AS $$
+  UPDATE reservations
+     SET quantity   = CASE WHEN fulfilled_quantity > 0 THEN fulfilled_quantity ELSE quantity END,
+         status     = CASE WHEN fulfilled_quantity > 0 THEN 'fulfilled' ELSE 'cancelled' END,
+         updated_at = p_at
+   WHERE reservation_id = p_id AND status = 'active'
+$$;
+
 CREATE TABLE shortages (
   shortage_id        bigserial PRIMARY KEY,
   work_order_id      bigint NOT NULL,
@@ -254,7 +267,7 @@ CREATE TABLE movements (
   CHECK (movement_type <> 'issue'      OR work_order_id IS NOT NULL)
 );
 CREATE INDEX movements_part_loc ON movements (part_id, location_id);
-CREATE INDEX movements_ledger   ON movements (part_id, occurred_at, movement_id);
+CREATE INDEX movements_ledger   ON movements (part_id, movement_id);
 CREATE UNIQUE INDEX movements_one_receipt_per_line
   ON movements (purchase_line_id) WHERE movement_type = 'receipt';
 
@@ -344,11 +357,13 @@ SELECT part_id, location_id, SUM(qty)::int AS on_hand
 FROM movements
 GROUP BY part_id, location_id;
 
--- Kardex: la API ordena DESC (occurred_at, movement_id)
+-- Kardex: la API ordena DESC (movement_id). Se ordena por orden de inserción, no por
+-- occurred_at: el trigger garantiza que ese orden nunca deja un saldo negativo, y un
+-- movimiento de la API (hora actual) puede tener occurred_at anterior a una entrada.
 CREATE VIEW part_ledger AS
 SELECT m.*,
        (SUM(qty) OVER (PARTITION BY part_id
-                       ORDER BY occurred_at, movement_id))::int AS running_balance
+                       ORDER BY movement_id))::int AS running_balance
 FROM movements m;
 
 -- Disponibilidad por pieza (reservas a nivel pieza; en la API reserved = 0 por ubicación)

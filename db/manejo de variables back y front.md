@@ -170,7 +170,31 @@ async function handleEvent(env: Envelope, topic: string) {
 
 &#x20; await db.tx(async (t) => {
 
-&#x20;   // 1. Idempotencia: si ya existe, no hace nada (regla 19)
+&#x20;   // 1. Atajo: si ya se procesó, no hace nada (regla 19)
+
+&#x20;   if (await alreadyProcessed(t, env.event\_id)) return;
+
+
+
+&#x20;   // 2. Referencias faltantes → pendientes (regla 20). El evento NO se marca como
+
+&#x20;   //    procesado: así el reintento lo vuelve a ejecutar completo.
+
+&#x20;   const missing = await findMissingRefs(t, env);
+
+&#x20;   if (missing) return enqueuePending(t, env, topic, missing); // INSERT … ON CONFLICT DO NOTHING
+
+
+
+&#x20;   // 3. Locks por pieza, ascendente
+
+&#x20;   for (const part\_id of partIdsOf(env).sort((a, b) => a - b))
+
+&#x20;     await t.query('SELECT pg\_advisory\_xact\_lock($1,$2)', \[PART\_LOCK\_NAMESPACE, part\_id]);
+
+
+
+&#x20;   // 4. Marcar como procesado (a prueba de carreras): si otro ya lo marcó, no hace nada
 
 &#x20;   const fresh = await t.query(
 
@@ -184,25 +208,11 @@ async function handleEvent(env: Envelope, topic: string) {
 
 
 
-&#x20;   // 2. Referencias faltantes → pendientes (regla 20)
-
-&#x20;   const missing = await findMissingRefs(t, env);
-
-&#x20;   if (missing) return enqueuePending(t, env, topic, missing);
-
-
-
-&#x20;   // 3. Locks por pieza, ascendente
-
-&#x20;   for (const part\_id of partIdsOf(env).sort((a, b) => a - b))
-
-&#x20;     await t.query('SELECT pg\_advisory\_xact\_lock($1,$2)', \[PART\_LOCK\_NAMESPACE, part\_id]);
-
-
-
-&#x20;   // 4-6. Efectos, refresh\_reorder, outbox
+&#x20;   // 5-7. Efectos, refresh\_reorder, outbox
 
 &#x20;   await HANDLERS\[env.event\_type](t, env.data, env.occurred\_at);
+
+&#x20;   await t.query('DELETE FROM pending\_events WHERE event\_id = $1', \[env.event\_id]); // si venía de pendientes
 
 &#x20; });
 
