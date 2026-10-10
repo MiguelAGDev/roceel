@@ -191,8 +191,16 @@ export interface AdvisorTurn {
   text: string;
 }
 
+/** Acción sugerida: el backend arma la ruta (`to`) de la pantalla donde se hace. */
+export interface AdvisorAction {
+  label: string;
+  to: string;
+}
+
 export interface AdvisorAnswer {
   answer: string;
+  actions: AdvisorAction[];
+  follow_ups: string[];
   model: string;
 }
 

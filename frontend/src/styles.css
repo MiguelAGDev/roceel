@@ -1229,20 +1229,112 @@ dialog::backdrop {
 
 /* ------------------------------------------------------------------ asesor (El Consejero) */
 
-.advisor {
+/* Botón flotante abajo a la derecha; abre una ventana encima del contenido en cualquier pantalla. */
+.advisor-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  color: var(--safety-ink);
+  background: var(--safety);
+  border: 1px solid var(--safety-strong);
+  border-radius: 50%;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.28);
+  cursor: pointer;
+}
+
+.advisor-fab svg {
+  width: 26px;
+  height: 26px;
+}
+
+.advisor-window {
+  position: fixed;
+  right: 20px;
+  bottom: 88px;
+  z-index: 60;
   display: flex;
   flex-direction: column;
-  max-width: 860px;
+  width: min(420px, calc(100vw - 40px));
+  height: min(600px, calc(100vh - 160px)); /* nunca encima de la barra superior */
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.3);
+  overflow: hidden;
+}
+
+.advisor-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 10px 10px 16px;
+  border-bottom: 3px solid var(--safety);
+}
+
+.advisor-context {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 0.85rem;
+}
+
+.advisor-close svg {
+  width: 20px;
+  height: 20px;
 }
 
 .advisor-log {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
-  min-height: 200px;
-  max-height: 60vh;
+  padding: 14px 16px;
   overflow-y: auto;
+}
+
+.advisor-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.advisor-actions .btn {
+  justify-content: space-between;
+  white-space: normal;
+  text-align: left;
+}
+
+.advisor-error {
+  padding: 0 16px 8px;
+}
+
+/* Celular: la ventana es una hoja que ocupa la pantalla (bajo la barra superior) y el botón se oculta. */
+@media (max-width: 767px) {
+  .advisor-window {
+    inset: 52px 0 0 0;
+    width: auto;
+    height: auto;
+    border-radius: 10px 10px 0 0;
+  }
+
+  .advisor-fab {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .advisor-fab.is-open {
+    display: none;
+  }
 }
 
 .advisor-hint {
@@ -1251,7 +1343,7 @@ dialog::backdrop {
 }
 
 .advisor-msg {
-  max-width: 88%;
+  max-width: 92%;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1289,7 +1381,7 @@ dialog::backdrop {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 10px 16px;
   border-top: 1px solid var(--line);
 }
 
