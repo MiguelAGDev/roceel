@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints
 
@@ -35,3 +35,15 @@ class CountIn(BaseModel):
     location_id: int
     reason: Reason
     lines: list[CountLine]
+
+
+class AdvisorTurn(BaseModel):
+    role: Literal["user", "model"]
+    text: Annotated[str, StringConstraints(max_length=8000)]
+
+
+class AdvisorIn(BaseModel):
+    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+    history: list[AdvisorTurn] = Field(default_factory=list, max_length=20)
+    part_id: int | None = None
+    work_order_code: str | None = None

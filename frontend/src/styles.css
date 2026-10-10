@@ -1226,3 +1226,104 @@ dialog::backdrop {
     transition: none !important;
   }
 }
+
+/* ------------------------------------------------------------------ asesor (El Consejero) */
+
+.advisor {
+  display: flex;
+  flex-direction: column;
+  max-width: 860px;
+}
+
+.advisor-log {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  min-height: 200px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.advisor-hint {
+  margin: auto 0;
+  text-align: center;
+}
+
+.advisor-msg {
+  max-width: 88%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--concrete-1);
+}
+
+.advisor-msg.user {
+  align-self: flex-end;
+  background: var(--info-bg);
+  border-color: transparent;
+}
+
+.advisor-msg.model {
+  align-self: flex-start;
+  border-left: 3px solid var(--safety);
+}
+
+.advisor-who {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.advisor-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.advisor-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.chip {
+  min-height: 32px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--steel-1);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.chip:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.advisor-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.advisor-form .input {
+  flex: 1 1 auto;
+  min-width: 0;
+  resize: vertical;
+}

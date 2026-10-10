@@ -6,10 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import db, repo
+from . import advisor, db, repo
 from .config import CORS_ORIGINS, UI_DIR
 from .domain import Conflict, NotFound
-from .schemas import CountIn, IssueIn, ResolveIn, TransferIn
+from .schemas import AdvisorIn, CountIn, IssueIn, ResolveIn, TransferIn
 
 
 @asynccontextmanager
@@ -40,6 +40,16 @@ async def not_found(request: Request, exc: NotFound):
 @app.exception_handler(Conflict)
 async def conflict(request: Request, exc: Conflict):
     return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+
+@app.exception_handler(advisor.AdvisorUnavailable)
+async def advisor_unavailable(request: Request, exc: advisor.AdvisorUnavailable):
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
+
+
+@app.exception_handler(advisor.AdvisorFailed)
+async def advisor_failed(request: Request, exc: advisor.AdvisorFailed):
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
 
 
 @app.get("/health")
@@ -160,6 +170,13 @@ def work_orders():
 @app.get("/dashboard")
 def dashboard():
     return repo.dashboard()
+
+
+# Asesor con Gemini: explica y aconseja con los datos de ahora; solo lee (ver advisor.py).
+@app.post("/advisor")
+def advisor_ask(body: AdvisorIn):
+    return advisor.ask(body.question, [t.model_dump() for t in body.history], body.part_id,
+                       body.work_order_code or None)
 
 
 # Las pantallas (frontend/ compilado) se sirven aquí mismo: un solo origen, sin CORS.

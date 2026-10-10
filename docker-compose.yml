@@ -39,6 +39,9 @@ services:
     environment:
       DATABASE_URL: postgresql://inv:inv@postgres:5432/inventory
       CORS_ORIGINS: "*"   # el frontend en desarrollo (Vite) vive en otro origen
+      # Asesor (opcional): la key se lee del .env de la raíz, que git ignora. Sin key, /advisor responde 503.
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite}
     ports:
       - "8000:8000"
     restart: unless-stopped
@@ -56,6 +59,8 @@ services:
               "--ssl-keyfile", "/certs/key.pem", "--ssl-certfile", "/certs/cert.pem"]
     environment:
       DATABASE_URL: postgresql://inv:inv@postgres:5432/inventory
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite}
     ports:
       - "8443:8443"
     restart: unless-stopped

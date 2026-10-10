@@ -2,8 +2,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api, catalog, fmtDateTime, fmtQty, fmtSigned, MOVEMENT_LABEL, partLabel, useApi, type LedgerEntry } from "../api";
-import { IconBack, IconHistory } from "../components/icons";
-import { Async, Badge, ErrorBox, Loading, PartTag, StockBadges, Tag } from "../components/ui";
+
+import { IconAdvisor, IconBack } from "../components/icons";
+import { Async, Badge, ErrorBox, Loading, StockBadges, Tag } from "../components/ui";
 import { Kpi } from "../components/charts";
 
 const PAGE = 50;
@@ -108,7 +109,10 @@ function KardexPart({ partId }: { partId: number }) {
             <StockBadges part={p} />
           </div>
         </div>
-        <Link className="btn" to={`/almacen?tab=faltantes&pieza=${p.part_id}`}>Ver faltantes</Link>
+        <div className="row">
+          <Link className="btn" to={`/asesor?pieza=${p.part_id}`}><IconAdvisor />Preguntar al Consejero</Link>
+          <Link className="btn" to={`/almacen?tab=faltantes&pieza=${p.part_id}`}>Ver faltantes</Link>
+        </div>
       </div>
 
       <div className="kpis">

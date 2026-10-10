@@ -34,3 +34,4 @@ export const IconBack = make(<path d="M15 18 9 12l6-6" />);
 export const IconPlus = make(<path d="M12 5v14M5 12h14" />);
 export const IconMinus = make(<path d="M5 12h14" />);
 export const IconTrash = make(<><path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15" /></>);
+export const IconAdvisor = make(<><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z" /><path d="M9 10h.01M15 10h.01M9.5 14a3.5 3.5 0 0 0 5 0" /></>);

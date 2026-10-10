@@ -3,8 +3,8 @@
 import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { HashRouter, Link, Navigate, NavLink, Route, Routes } from "react-router-dom";
-import { api, consumerHealth, fmtDateTime, hasTouchCamera, useApi } from "./api";
-import { IconDashboard, IconOrder, IconScan, IconWarehouse } from "./components/icons";
+import { api, consumerHealth, fmtDateTime, useApi } from "./api";
+import { IconAdvisor, IconDashboard, IconOrder, IconScan, IconWarehouse } from "./components/icons";
 import { Loading } from "./components/ui";
 import "./styles.css";
 
@@ -13,6 +13,7 @@ const Tablero = lazy(() => import("./pages/Tablero"));
 const Almacen = lazy(() => import("./pages/Almacen"));
 const Orden = lazy(() => import("./pages/Orden"));
 const Kardex = lazy(() => import("./pages/Kardex"));
+const Asesor = lazy(() => import("./pages/Asesor"));
 
 /** "/" lleva al Piso en un celular y al Tablero en una computadora. */
 function Home() {
@@ -39,7 +40,7 @@ const NAV = [
   { to: "/tablero", label: "Tablero", Icon: IconDashboard },
   { to: "/almacen", label: "Almacén", Icon: IconWarehouse },
   { to: "/ordenes", label: "Órdenes", Icon: IconOrder },
-  { to: "/kardex", label: "Kardex", Icon: IconHistory },
+  { to: "/asesor", label: "Asesor", Icon: IconAdvisor },
 ];
 
 function App() {
@@ -70,6 +71,7 @@ function App() {
             <Route path="/ordenes/:code" element={<Orden />} />
             <Route path="/kardex" element={<Kardex />} />
             <Route path="/kardex/:partId" element={<Kardex />} />
+            <Route path="/asesor" element={<Asesor />} />
             <Route path="*" element={<div className="empty"><h1>Página no encontrada</h1><p><Link to="/">Ir al inicio</Link></p></div>} />
           </Routes>
         </Suspense>
