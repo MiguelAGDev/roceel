@@ -224,7 +224,7 @@ CREATE TABLE shortages (
   FOREIGN KEY (work_order_id, bom_line_id) REFERENCES needs,
   CHECK (missing_quantity IS NULL OR resolved_quantity <= missing_quantity),
   CHECK ((kind = 'unidentified') = (part_id IS NULL)),
-  CHECK ((kind = 'unknown_qty') = (missing_quantity IS NULL))
+  CHECK (kind = 'unidentified' OR (kind = 'unknown_qty') = (missing_quantity IS NULL))
 );
 CREATE UNIQUE INDEX shortages_one_open_per_need
   ON shortages (work_order_id, bom_line_id) WHERE status = 'open';
@@ -267,7 +267,7 @@ CREATE TABLE movements (
   CHECK (movement_type <> 'issue'      OR work_order_id IS NOT NULL)
 );
 CREATE INDEX movements_part_loc ON movements (part_id, location_id);
-CREATE INDEX movements_ledger   ON movements (part_id, movement_id);
+CREATE INDEX movements_ledger   ON movements (part_id, occurred_at, movement_id);
 CREATE UNIQUE INDEX movements_one_receipt_per_line
   ON movements (purchase_line_id) WHERE movement_type = 'receipt';
 
@@ -357,13 +357,13 @@ SELECT part_id, location_id, SUM(qty)::int AS on_hand
 FROM movements
 GROUP BY part_id, location_id;
 
--- Kardex: la API ordena DESC (movement_id). Se ordena por orden de inserción, no por
--- occurred_at: el trigger garantiza que ese orden nunca deja un saldo negativo, y un
--- movimiento de la API (hora actual) puede tener occurred_at anterior a una entrada.
+-- Kardex: la API ordena DESC (occurred_at, movement_id). Va por fecha del evento, no por
+-- orden de inserción: los avisos llegan desordenados (una compra de agosto puede guardarse
+-- después de una de septiembre), y el kardex debe leerse en orden cronológico.
 CREATE VIEW part_ledger AS
 SELECT m.*,
        (SUM(qty) OVER (PARTITION BY part_id
-                       ORDER BY movement_id))::int AS running_balance
+                       ORDER BY occurred_at, movement_id))::int AS running_balance
 FROM movements m;
 
 -- Disponibilidad por pieza (reservas a nivel pieza; en la API reserved = 0 por ubicación)

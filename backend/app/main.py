@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -33,17 +33,26 @@ def health():
 
 @app.get("/parts/{part_id}/availability")
 def availability(part_id: int):
-    return repo.get_availability(part_id)
+    result = repo.get_availability(part_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"la pieza {part_id} no existe")
+    return result
 
 
 @app.get("/parts/{part_id}/ledger")
 def ledger(part_id: int):
-    return repo.get_ledger(part_id)
+    result = repo.get_ledger(part_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"la pieza {part_id} no existe")
+    return result
 
 
 @app.get("/work-orders/{code}/materials")
 def materials(code: str):
-    return repo.get_materials(code)
+    result = repo.get_materials(code)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"la orden {code} no existe")
+    return result
 
 
 @app.get("/shortages")
