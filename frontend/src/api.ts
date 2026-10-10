@@ -185,6 +185,17 @@ export interface ConsumerStatus {
   oldest_unpublished_at: string | null;
 }
 
+/** Asesor (POST /advisor, ruta extra): una vuelta de la conversación con El Consejero. */
+export interface AdvisorTurn {
+  role: "user" | "model";
+  text: string;
+}
+
+export interface AdvisorAnswer {
+  answer: string;
+  model: string;
+}
+
 // ---------------------------------------------------------------- cliente HTTP
 
 // Compilada, la app vive en el mismo origen que la API (/ui); con `npm run dev`, la API está en :8000.
@@ -254,6 +265,8 @@ export const api = {
     post<Movement>("/transfers", body),
   count: (body: { location_id: number; reason: string; lines: { part_id: number; counted_quantity: number }[] }) =>
     post<CountResult>("/counts", body),
+  advisor: (body: { question: string; history: AdvisorTurn[]; part_id?: number; work_order_code?: string }) =>
+    post<AdvisorAnswer>("/advisor", body),
 };
 
 // ---------------------------------------------------------------- useApi
@@ -414,10 +427,11 @@ export const UNMATCHED_REASON_LABEL = { no_match: "Sin coincidencia", ambiguous:
 export const ORDER_CODE = /^R\d{9}(-\d+)?$/;
 
 /** Mensaje para el usuario según el error de la API. */
-export function errorMessage(err: ApiError, context?: "issue" | "transfer" | "count" | "resolve"): string {
+export function errorMessage(err: ApiError, context?: "issue" | "transfer" | "count" | "resolve" | "advisor"): string {
   if (err.status === 409 && (context === "issue" || context === "transfer")) return "No alcanza el saldo en esa ubicación";
   if (err.status === 409 && context === "resolve") return "Esta recepción ya estaba resuelta";
   if (err.status === 422 && context === "count") return "Falta el motivo del conteo";
+  if (err.status === 502 && context === "advisor") return `El Consejero no respondió; intenta de nuevo en un momento (${err.detail})`;
   return err.detail;
 }
 

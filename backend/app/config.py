@@ -27,3 +27,10 @@ PENDING_MAX_ATTEMPTS_ERROR = int(os.environ.get("PENDING_MAX_ATTEMPTS_ERROR", "3
 TOPICS_IN = os.environ.get(
     "TOPICS_IN", "shop.catalog,shop.work_orders,shop.inspections,shop.purchasing"
 ).split(",")
+
+# Asesor (POST /advisor): Gemini. La key va en el .env de la raíz (ignorado por git), nunca en el código.
+# Sin key la API funciona igual y solo el asesor responde 503.
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+GEMINI_URL = os.environ.get("GEMINI_URL", "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
+GEMINI_TIMEOUT_S = float(os.environ.get("GEMINI_TIMEOUT_S", "25"))
