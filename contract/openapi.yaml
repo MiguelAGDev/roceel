@@ -1,0 +1,370 @@
+openapi: 3.1.0
+info:
+  title: Servicio de inventario del taller
+  version: "1.0.0"
+  description: |
+    API mínima que las pruebas de contrato revisan. Pueden agregar rutas y campos,
+    pero no cambiar los nombres ni las formas de lo que está aquí.
+
+    Convenciones:
+    - JSON en UTF-8. Fechas ISO 8601 en UTC (terminadas en Z). Importes como texto decimal.
+    - Cantidades enteras, en la unidad de la pieza.
+    - Las listas responden `{"items": [...]}`.
+    - Los errores responden `{"detail": "<mensaje>"}` con el código HTTP indicado.
+    - Sin autenticación.
+
+paths:
+  /parts/{part_id}/availability:
+    get:
+      summary: Saldo de una pieza, total y por ubicación
+      parameters: [{ $ref: "#/components/parameters/PartId" }]
+      responses:
+        "200":
+          description: Saldo
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Availability" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /parts/{part_id}/ledger:
+    get:
+      summary: Kardex de una pieza, del movimiento más reciente al más antiguo
+      parameters: [{ $ref: "#/components/parameters/PartId" }]
+      responses:
+        "200":
+          description: Kardex
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ledger" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /work-orders/{code}/materials:
+    get:
+      summary: Materiales de una orden, por línea de inspección vigente
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema: { type: string, example: R061026012 }
+      responses:
+        "200":
+          description: Materiales de la orden
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkOrderMaterials" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /shortages:
+    get:
+      summary: Faltantes abiertos
+      parameters:
+        - { name: work_order_code, in: query, schema: { type: string } }
+        - { name: part_id, in: query, schema: { type: integer } }
+      responses:
+        "200":
+          description: Faltantes abiertos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Shortage" } }
+
+  /reorder-suggestions:
+    get:
+      summary: Sugerencias de compra vigentes
+      responses:
+        "200":
+          description: Sugerencias
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/ReorderSuggestion" } }
+
+  /unmatched-receipts:
+    get:
+      summary: Recepciones sin relacionar con el catálogo (pendientes)
+      responses:
+        "200":
+          description: Pendientes de relacionar
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/UnmatchedReceipt" } }
+
+  /unmatched-receipts/{id}/resolve:
+    post:
+      summary: Relacionar a mano una recepción con una pieza
+      description: |
+        Registra la entrada (emite `stock.received`) como si la recepción hubiera
+        coincidido desde el principio, incluido surtir el faltante de su orden.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: [integer, string] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [part_id]
+              properties:
+                part_id: { type: integer }
+                location_id: { type: integer, description: Opcional; si falta, la ubicación de recepción. }
+      responses:
+        "200":
+          description: Recepción relacionada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Movement" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /issues:
+    post:
+      summary: Salida de una pieza contra una orden (escaneo en piso)
+      description: |
+        Baja el saldo y consume primero la reserva de esa orden para esa pieza
+        (la pasa a `fulfilled` cuando se entrega completa). Emite `stock.issued`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [work_order_code, part_id, location_id, quantity, issued_by]
+              properties:
+                work_order_code: { type: string }
+                part_id: { type: integer }
+                location_id: { type: integer }
+                quantity: { type: integer, minimum: 1 }
+                issued_by: { type: [integer, string] }
+      responses:
+        "201":
+          description: Salida registrada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Movement" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: No alcanza el saldo en esa ubicación (nunca se deja negativo)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /transfers:
+    post:
+      summary: Transferencia entre ubicaciones
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [part_id, from_location_id, to_location_id, quantity]
+              properties:
+                part_id: { type: integer }
+                from_location_id: { type: integer }
+                to_location_id: { type: integer }
+                quantity: { type: integer, minimum: 1 }
+      responses:
+        "201":
+          description: Transferencia registrada (emite `stock.transferred`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Movement" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /counts:
+    post:
+      summary: Conteo cíclico de una ubicación
+      description: |
+        Compara lo contado contra el saldo y registra un ajuste por cada diferencia
+        (emite `stock.adjusted`). Una pieza que no se lista no se toca.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [location_id, reason, lines]
+              properties:
+                location_id: { type: integer }
+                reason: { type: string, minLength: 1 }
+                lines:
+                  type: array
+                  items:
+                    type: object
+                    required: [part_id, counted_quantity]
+                    properties:
+                      part_id: { type: integer }
+                      counted_quantity: { type: integer, minimum: 0 }
+      responses:
+        "201":
+          description: Conteo registrado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [adjustments]
+                properties:
+                  adjustments:
+                    type: array
+                    description: Solo las piezas con diferencia.
+                    items:
+                      type: object
+                      required: [part_id, delta]
+                      properties:
+                        part_id: { type: integer }
+                        delta: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422":
+          description: Falta el motivo o el cuerpo es inválido
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+components:
+  parameters:
+    PartId:
+      name: part_id
+      in: path
+      required: true
+      schema: { type: integer }
+
+  responses:
+    NotFound:
+      description: No existe
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Conflict:
+      description: Ya resuelto, o no alcanza el saldo
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [detail]
+      properties:
+        detail: { type: string }
+
+    Availability:
+      type: object
+      required: [part_id, on_hand, reserved, available, locations]
+      description: |
+        Las pruebas comparan los totales de la raíz y `on_hand` por ubicación. Si
+        reservan a nivel pieza (sin ubicación), reporten `reserved` en 0 por ubicación.
+      properties:
+        part_id: { type: integer }
+        on_hand: { type: integer }
+        reserved: { type: integer }
+        available: { type: integer, description: on_hand - reserved }
+        locations:
+          type: array
+          items:
+            type: object
+            required: [location_id, on_hand, reserved, available]
+            properties:
+              location_id: { type: integer }
+              code: { type: string }
+              on_hand: { type: integer }
+              reserved: { type: integer }
+              available: { type: integer }
+
+    Movement:
+      type: object
+      required: [movement_id, type, part_id, location_id, quantity, occurred_at]
+      properties:
+        movement_id: { type: [integer, string] }
+        type: { enum: [receipt, issue, transfer_out, transfer_in, adjustment] }
+        part_id: { type: integer }
+        location_id: { type: integer }
+        quantity: { type: integer, description: Con signo; negativo cuando sale. }
+        occurred_at: { type: string, format: date-time }
+        reference: { type: [string, "null"], description: Orden, línea de compra o motivo. }
+
+    Ledger:
+      type: object
+      required: [part_id, entries]
+      properties:
+        part_id: { type: integer }
+        entries:
+          type: array
+          description: Del más reciente al más antiguo.
+          items:
+            allOf:
+              - { $ref: "#/components/schemas/Movement" }
+              - type: object
+                required: [balance]
+                properties:
+                  balance:
+                    type: integer
+                    description: Saldo de la pieza (todas las ubicaciones) después del movimiento.
+
+    WorkOrderMaterials:
+      type: object
+      required: [work_order_id, code, lines]
+      properties:
+        work_order_id: { type: integer }
+        code: { type: string }
+        lines:
+          type: array
+          description: Una línea por bom_line_id con necesidad vigente (action = buy).
+          items:
+            type: object
+            required: [inspection_item_id, bom_line_id, part_id, name, required, reserved, issued, missing]
+            properties:
+              inspection_item_id: { type: integer }
+              bom_line_id: { type: integer }
+              part_id: { type: [integer, "null"] }
+              name: { type: string }
+              required: { type: [integer, "null"] }
+              reserved: { type: integer }
+              issued: { type: integer }
+              missing: { type: [integer, "null"] }
+
+    Shortage:
+      type: object
+      required: [work_order_id, work_order_code, part_id, name, missing_quantity, inspection_item_id]
+      properties:
+        work_order_id: { type: integer }
+        work_order_code: { type: string }
+        part_id: { type: [integer, "null"] }
+        name: { type: string }
+        missing_quantity: { type: [integer, "null"] }
+        inspection_item_id: { type: integer }
+        opened_at: { type: string, format: date-time }
+
+    ReorderSuggestion:
+      type: object
+      required: [part_id, suggested_quantity, work_order_ids]
+      properties:
+        part_id: { type: integer }
+        sku: { type: [string, "null"] }
+        name: { type: string }
+        suggested_quantity: { type: integer, minimum: 1 }
+        work_order_ids: { type: array, items: { type: integer } }
+
+    UnmatchedReceipt:
+      type: object
+      required: [id, purchase_line_id, part_number, description, quantity, received_at]
+      properties:
+        id: { type: [integer, string] }
+        purchase_line_id: { type: integer }
+        part_number: { type: string }
+        description: { type: string }
+        quantity: { type: integer }
+        unit_price: { type: string }
+        currency: { enum: [MXN, USD] }
+        received_at: { type: string, format: date-time }
+        work_order_code: { type: [string, "null"] }

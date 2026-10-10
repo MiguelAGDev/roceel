@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hackathon-inventario.local/schemas/input/location.upserted.schema.json",
+  "title": "location.upserted",
+  "description": "Llave (key): \"location:\" + location_id, ej. \"location:14\". Tópico: shop.catalog.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "source",
+    "key",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "const": "location.upserted"
+    },
+    "event_version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "$ref": "../common.schema.json#/$defs/timestamp"
+    },
+    "source": {
+      "const": "shop-floor"
+    },
+    "key": {
+      "$ref": "../common.schema.json#/$defs/non_empty_string"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "location_id",
+        "code",
+        "name",
+        "is_workbench",
+        "active"
+      ],
+      "properties": {
+        "location_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^U-\\d{3}$"
+        },
+        "name": {
+          "$ref": "../common.schema.json#/$defs/non_empty_string"
+        },
+        "is_workbench": {
+          "type": "boolean"
+        },
+        "active": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

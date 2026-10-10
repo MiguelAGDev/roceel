@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hackathon-inventario.local/schemas/output/stock.transferred.schema.json",
+  "title": "stock.transferred",
+  "description": "Llave (key): \"part:\" + part_id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "source",
+    "key",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "const": "stock.transferred"
+    },
+    "event_version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "$ref": "../common.schema.json#/$defs/timestamp"
+    },
+    "source": {
+      "const": "inventory"
+    },
+    "key": {
+      "$ref": "../common.schema.json#/$defs/non_empty_string"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "part_id",
+        "from_location_id",
+        "to_location_id",
+        "quantity"
+      ],
+      "properties": {
+        "part_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "from_location_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "to_location_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "quantity": {
+          "$ref": "../common.schema.json#/$defs/quantity"
+        }
+      }
+    }
+  }
+}

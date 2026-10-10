@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hackathon-inventario.local/schemas/output/stock.reorder_suggested.schema.json",
+  "title": "stock.reorder_suggested",
+  "description": "Llave (key): \"part:\" + part_id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "source",
+    "key",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "const": "stock.reorder_suggested"
+    },
+    "event_version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "$ref": "../common.schema.json#/$defs/timestamp"
+    },
+    "source": {
+      "const": "inventory"
+    },
+    "key": {
+      "$ref": "../common.schema.json#/$defs/non_empty_string"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "part_id",
+        "suggested_quantity",
+        "work_order_ids"
+      ],
+      "properties": {
+        "part_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "suggested_quantity": {
+          "$ref": "../common.schema.json#/$defs/quantity"
+        },
+        "work_order_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "../common.schema.json#/$defs/id"
+          },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,66 @@
+# Broker + consola + simulador del taller.
+#
+#   docker compose up -d          # todo
+#   docker compose logs -f simulator
+#
+# Desde su máquina el broker está en localhost:19092; desde otro contenedor de esta red,
+# en redpanda:9092. Consola: http://localhost:8080 · Panel del simulador: http://localhost:8090
+#
+# Variables útiles (en .env o al llamar a compose):
+#   SPEED=3600   segundos simulados por segundo real: 3600 = 1 h por segundo, 6 semanas en ~17 min (0 = sin pausas)
+#   RESET=1      borra y recrea los tópicos al arrancar el simulador
+
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+    ports:
+      - "19092:19092"
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health", "--exit-when-healthy"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  console:
+    image: docker.redpanda.com/redpandadata/console:v2.7.2
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    ports:
+      - "8080:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  simulator:
+    build:
+      context: .
+      dockerfile: simulator/Dockerfile
+    environment:
+      BROKER: redpanda:9092
+      SPEED: ${SPEED:-3600}
+      RESET: ${RESET:-0}
+    ports:
+      - "8090:8090"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  # Pruebas de contrato (no arrancan con `up`):
+  #   docker compose run --rm contract-tests --api http://host.docker.internal:8000
+  contract-tests:
+    profiles: ["tests"]
+    build:
+      context: .
+      dockerfile: contract-tests/Dockerfile
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redpanda:
+        condition: service_healthy

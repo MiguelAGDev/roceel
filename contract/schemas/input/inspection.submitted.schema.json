@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hackathon-inventario.local/schemas/input/inspection.submitted.schema.json",
+  "title": "inspection.submitted",
+  "description": "Llave (key): código de la orden. Tópico: shop.inspections.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "source",
+    "key",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "const": "inspection.submitted"
+    },
+    "event_version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "$ref": "../common.schema.json#/$defs/timestamp"
+    },
+    "source": {
+      "const": "shop-floor"
+    },
+    "key": {
+      "$ref": "../common.schema.json#/$defs/non_empty_string"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inspection_id",
+        "work_order_id",
+        "kind",
+        "items"
+      ],
+      "properties": {
+        "inspection_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "work_order_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "quick",
+            "full"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "../common.schema.json#/$defs/inspection_item"
+          }
+        }
+      }
+    }
+  }
+}

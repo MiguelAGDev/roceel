@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulador del taller</title>
+<style>
+  :root { --bg:#f6f7f5; --card:#fff; --text:#1d2420; --muted:#66706a; --line:#dde2de; --accent:#1f7a4d; --warn:#b4541a; --bad:#b42318; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#121614; --card:#1b201d; --text:#e7ece9; --muted:#9aa49e; --line:#2c332f; --accent:#4cc38a; --warn:#f0a35e; --bad:#f97066; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:1100px; margin:0 auto; padding:16px; display:grid; gap:16px; }
+  h1 { font-size:20px; margin:0; } h2 { font-size:15px; margin:0 0 10px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .muted { color:var(--muted); }
+  button { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--text); border-radius:7px; padding:6px 11px; cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.warn { color:var(--warn); } button.bad { color:var(--bad); }
+  select, input { font:inherit; padding:5px 7px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--text); }
+  table { width:100%; border-collapse:collapse; } th, td { text-align:left; padding:5px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  .scroll { overflow-x:auto; }
+  .pill { font-size:12px; padding:1px 8px; border-radius:99px; border:1px solid var(--line); }
+  progress { width:220px; }
+  .order { border-top:1px solid var(--line); padding-top:12px; margin-top:12px; }
+  #toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--text); color:var(--bg); padding:8px 14px; border-radius:8px; display:none; }
+</style>
+</head>
+<body>
+<main>
+  <div class="row" style="justify-content:space-between">
+    <h1>Simulador del taller</h1>
+    <div class="row muted"><span id="replay"></span><progress id="bar" max="1" value="0"></progress></div>
+  </div>
+
+  <section class="card">
+    <h2>1. Abrir una orden de trabajo</h2>
+    <div class="row">
+      <select id="model"></select>
+      <button class="primary" onclick="openOrder()">Recibir equipo</button>
+      <span class="muted">Publica <code>work_order.opened</code> y la pasa a diagnóstico rápido.</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2. Compra que llega a almacén</h2>
+    <div class="row">
+      <input id="pn" list="skus" placeholder="Número de parte" size="22">
+      <datalist id="skus"></datalist>
+      <input id="qty" type="number" min="1" value="1" style="width:70px" aria-label="Cantidad">
+      <input id="price" type="number" min="0" step="0.01" value="100.00" style="width:100px" aria-label="Precio unitario">
+      <select id="cur"><option>MXN</option><option>USD</option></select>
+      <select id="purpose"><option value="restock">Reabasto</option><option value="customer_order">Para cliente</option></select>
+      <select id="wo"><option value="">Sin orden</option></select>
+      <button class="primary" onclick="receive()">Registrar llegada</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3. Órdenes de la demo</h2>
+    <div id="orders" class="muted">Todavía no hay órdenes abiertas desde el panel.</div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+const STAGES = ["awaiting_quick_inspection","quick_inspection","awaiting_full_inspection","full_inspection","cleaning","assembly","run_in","final_assembly","final_release"];
+let state = null;
+const drafts = {};  // borrador de inspección por orden
+
+function toast(msg) { const t = document.getElementById("toast"); t.textContent = msg; t.style.display = "block"; setTimeout(() => t.style.display = "none", 2500); }
+async function api(path, body) {
+  const r = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.detail || r.status);
+  return data;
+}
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function refresh(full) {
+  state = await api("/api/state");
+  const r = state.replay;
+  document.getElementById("replay").textContent = r.done ? `Replay terminado (${r.sent} eventos)` : `Replay ${r.sent}/${r.total} · ${r.sim_time ?? ""}`;
+  const bar = document.getElementById("bar"); bar.max = r.total || 1; bar.value = r.sent;
+  if (full) {
+    document.getElementById("model").innerHTML = state.models.map(m => `<option value="${m.model_id}">${esc(m.brand)} ${esc(m.model_name)} (${m.lines.length} piezas)</option>`).join("");
+    document.getElementById("skus").innerHTML = state.parts.filter(p => p.sku).map(p => `<option value="${esc(p.sku)}">${esc(p.name)}</option>`).join("");
+  }
+  const live = state.orders.filter(o => !o.deleted);
+  document.getElementById("wo").innerHTML = `<option value="">Sin orden</option>` + live.map(o => `<option>${o.code}</option>`).join("");
+  renderOrders();
+}
+
+function renderOrders() {
+  if (!state.orders.length) return;
+  document.getElementById("orders").classList.remove("muted");
+  document.getElementById("orders").innerHTML = state.orders.map(o => {
+    const model = state.models.find(m => m.model_id === o.model_id);
+    const insp = o.inspections.map(i => `
+      <div class="row" style="margin:6px 0">
+        <span class="pill">${i.kind === "quick" ? "Rápida" : "Completa"} #${i.inspection_id}</span>
+        <span class="pill">${i.status}</span>
+        <span class="muted">${i.items.filter(x => x.action === "buy").length} a comprar · ${i.items.filter(x => x.action === "repair").length} a reparar</span>
+        ${i.status === "submitted" ? `<button class="primary" onclick="close_(${i.inspection_id},'approve')">Aprobar</button>
+          <button class="warn" onclick="close_(${i.inspection_id},'reject')">Rechazar</button>
+          <button onclick="close_(${i.inspection_id},'discard')">Descartar</button>` : ""}
+        ${i.status === "approved" ? `<button class="bad" onclick="close_(${i.inspection_id},'void')">Anular (regresar etapa)</button>` : ""}
+      </div>`).join("");
+    const pending = o.inspections.some(i => i.status === "submitted");
+    const draft = drafts[o.work_order_id] ||= Object.fromEntries(model.lines.map(l => [l.bom_line_id, { condition: "ok", action: "buy", quantity: l.qty_per_unit ?? 1 }]));
+    const editor = (o.deleted || pending) ? "" : `
+      <details ${o.inspections.length ? "" : "open"}><summary>Capturar inspección</summary>
+        <div class="scroll"><table><thead><tr><th>Pieza</th><th>Grupo</th><th>Estado</th><th>Acción</th><th>Cantidad</th></tr></thead><tbody>
+        ${model.lines.map(l => { const d = draft[l.bom_line_id]; return `<tr>
+          <td>${esc(l.name)} <span class="muted">${l.part_id ? "#" + l.part_id : "sin pieza"}</span></td>
+          <td class="muted">${esc(l.group_name ?? "")}</td>
+          <td><select onchange="setDraft(${o.work_order_id},${l.bom_line_id},'condition',this.value)">
+            ${["ok","damaged","missing"].map(c => `<option value="${c}" ${d.condition === c ? "selected" : ""}>${{ok:"Bien",damaged:"Dañada",missing:"Falta"}[c]}</option>`).join("")}</select></td>
+          <td><select onchange="setDraft(${o.work_order_id},${l.bom_line_id},'action',this.value)" ${d.condition !== "damaged" ? "disabled" : ""}>
+            <option value="buy" ${d.action === "buy" ? "selected" : ""}>Comprar</option><option value="repair" ${d.action === "repair" ? "selected" : ""}>Reparar</option></select></td>
+          <td><input type="number" min="1" style="width:70px" value="${d.quantity ?? ""}" ${d.condition === "ok" ? "disabled" : ""} onchange="setDraft(${o.work_order_id},${l.bom_line_id},'quantity',this.value)"></td></tr>`; }).join("")}
+        </tbody></table></div>
+        <div class="row" style="margin-top:8px">
+          <button class="primary" onclick="submit_(${o.work_order_id},'quick')">Enviar inspección rápida</button>
+          <button onclick="submit_(${o.work_order_id},'full')">Enviar inspección completa</button>
+        </div>
+      </details>`;
+    return `<div class="order">
+      <div class="row" style="justify-content:space-between">
+        <div class="row"><strong>${o.code}</strong><span class="muted">${esc(model.brand)} ${esc(o.model_name)}</span>
+          <span class="pill">${o.deleted ? "dada de baja" : o.stage}</span></div>
+        ${o.deleted ? "" : `<div class="row">
+          <select onchange="stage(${o.work_order_id}, this.value)"><option value="">Cambiar etapa…</option>${STAGES.map(s => `<option>${s}</option>`).join("")}</select>
+          <button class="bad" onclick="del_(${o.work_order_id})">Dar de baja</button></div>`}
+      </div>${insp}${editor}</div>`;
+  }).join("");
+}
+
+function setDraft(wo, line, field, value) { drafts[wo][line][field] = value; if (field === "condition") renderOrders(); }
+async function run(fn, ok) { try { await fn(); toast(ok); await refresh(); } catch (e) { toast("Error: " + e.message); } }
+const openOrder = () => run(() => api("/api/orders", { model_id: +document.getElementById("model").value }), "Orden abierta");
+const submit_ = (wo, kind) => run(() => api(`/api/orders/${wo}/inspections`, { kind,
+  items: Object.entries(drafts[wo]).filter(([, d]) => kind === "quick" || d.condition !== "ok").map(([id, d]) => ({ bom_line_id: +id, ...d })) }), "Inspección enviada");
+const close_ = (id, outcome) => { const reason = (outcome === "reject" || outcome === "void") ? prompt("Motivo") : null;
+  if ((outcome === "reject" || outcome === "void") && !reason) return; run(() => api(`/api/inspections/${id}/${outcome}`, { reason }), "Listo"); };
+const stage = (wo, s) => s && run(() => api(`/api/orders/${wo}/stage`, { to_stage: s }), "Etapa cambiada");
+const del_ = wo => confirm("¿Dar de baja la orden?") && run(() => api(`/api/orders/${wo}/delete`, {}), "Orden dada de baja");
+const receive = () => run(() => api("/api/purchases", { part_number: document.getElementById("pn").value, quantity: +document.getElementById("qty").value,
+  unit_price: document.getElementById("price").value, currency: document.getElementById("cur").value, purpose: document.getElementById("purpose").value,
+  work_order_code: document.getElementById("wo").value || null,
+  description: state.parts.find(p => p.sku === document.getElementById("pn").value)?.name }), "Compra registrada");
+
+refresh(true); setInterval(() => refresh(false).catch(() => {}), 3000);
+</script>
+</body>
+</html>

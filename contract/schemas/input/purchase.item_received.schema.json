@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hackathon-inventario.local/schemas/input/purchase.item_received.schema.json",
+  "title": "purchase.item_received",
+  "description": "Llave (key): \"PR-\" + request_number, ej. \"PR-2044\". Tópico: shop.purchasing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "source",
+    "key",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "const": "purchase.item_received"
+    },
+    "event_version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "$ref": "../common.schema.json#/$defs/timestamp"
+    },
+    "source": {
+      "const": "shop-floor"
+    },
+    "key": {
+      "$ref": "../common.schema.json#/$defs/non_empty_string"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "purchase_request_id",
+        "request_number",
+        "line_id",
+        "part_number",
+        "description",
+        "quantity",
+        "unit_price",
+        "currency",
+        "purpose",
+        "received_at",
+        "work_order_code"
+      ],
+      "properties": {
+        "purchase_request_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "request_number": {
+          "$ref": "../common.schema.json#/$defs/non_empty_string"
+        },
+        "line_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "part_number": {
+          "type": "string"
+        },
+        "description": {
+          "$ref": "../common.schema.json#/$defs/non_empty_string"
+        },
+        "quantity": {
+          "$ref": "../common.schema.json#/$defs/quantity"
+        },
+        "unit_price": {
+          "$ref": "../common.schema.json#/$defs/decimal"
+        },
+        "currency": {
+          "$ref": "../common.schema.json#/$defs/currency"
+        },
+        "purpose": {
+          "enum": [
+            "restock",
+            "customer_order"
+          ]
+        },
+        "received_at": {
+          "$ref": "../common.schema.json#/$defs/timestamp"
+        },
+        "work_order_code": {
+          "anyOf": [
+            {
+              "$ref": "../common.schema.json#/$defs/work_order_code"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

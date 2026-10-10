@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hackathon-inventario.local/schemas/common.schema.json",
+  "title": "Tipos compartidos",
+  "$defs": {
+    "id": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "ID entero positivo."
+    },
+    "quantity": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Cantidad entera, en la unidad de la pieza."
+    },
+    "decimal": {
+      "type": "string",
+      "pattern": "^-?\\d+(\\.\\d+)?$",
+      "description": "Importe decimal en texto, ej. \"1850.00\". Nunca float."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$",
+      "description": "ISO 8601 en UTC, terminado en Z."
+    },
+    "currency": {
+      "enum": [
+        "MXN",
+        "USD"
+      ]
+    },
+    "stage": {
+      "enum": [
+        "awaiting_quick_inspection",
+        "quick_inspection",
+        "awaiting_full_inspection",
+        "full_inspection",
+        "cleaning",
+        "assembly",
+        "run_in",
+        "final_assembly",
+        "final_release"
+      ]
+    },
+    "department": {
+      "enum": [
+        "spindles",
+        "motors",
+        "electronics",
+        "torque_center"
+      ]
+    },
+    "work_order_code": {
+      "type": "string",
+      "pattern": "^R\\d{9}(-\\d+)?$",
+      "description": "Código de la orden de trabajo: R + DDMMYY + consecutivo de 3 dígitos; las garantías agregan -N."
+    },
+    "unit": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "name"
+          ],
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/id"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inspection_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inspection_item_id",
+        "bom_line_id",
+        "part_id",
+        "name",
+        "group_name",
+        "condition",
+        "action",
+        "quantity",
+        "note"
+      ],
+      "properties": {
+        "inspection_item_id": {
+          "$ref": "#/$defs/id"
+        },
+        "bom_line_id": {
+          "$ref": "#/$defs/id"
+        },
+        "part_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "group_name": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/non_empty_string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "condition": {
+          "enum": [
+            "ok",
+            "damaged",
+            "missing"
+          ]
+        },
+        "action": {
+          "enum": [
+            "buy",
+            "repair",
+            null
+          ]
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/quantity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "condition": {
+                "const": "ok"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "action": {
+                "const": null
+              },
+              "quantity": {
+                "const": null
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "condition": {
+                "const": "missing"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "action": {
+                "const": "buy"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "condition": {
+                "const": "damaged"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "action": {
+                "enum": [
+                  "buy",
+                  "repair"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

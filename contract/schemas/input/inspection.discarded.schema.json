@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hackathon-inventario.local/schemas/input/inspection.discarded.schema.json",
+  "title": "inspection.discarded",
+  "description": "Llave (key): código de la orden. Tópico: shop.inspections.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "source",
+    "key",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "const": "inspection.discarded"
+    },
+    "event_version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "$ref": "../common.schema.json#/$defs/timestamp"
+    },
+    "source": {
+      "const": "shop-floor"
+    },
+    "key": {
+      "$ref": "../common.schema.json#/$defs/non_empty_string"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inspection_id",
+        "work_order_id"
+      ],
+      "properties": {
+        "inspection_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "work_order_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hackathon-inventario.local/schemas/output/stock.unmatched_receipt.schema.json",
+  "title": "stock.unmatched_receipt",
+  "description": "Llave (key): \"purchase_line:\" + purchase_line_id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "source",
+    "key",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "const": "stock.unmatched_receipt"
+    },
+    "event_version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "$ref": "../common.schema.json#/$defs/timestamp"
+    },
+    "source": {
+      "const": "inventory"
+    },
+    "key": {
+      "$ref": "../common.schema.json#/$defs/non_empty_string"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "purchase_line_id",
+        "part_number",
+        "description",
+        "quantity"
+      ],
+      "properties": {
+        "purchase_line_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "part_number": {
+          "type": "string"
+        },
+        "description": {
+          "$ref": "../common.schema.json#/$defs/non_empty_string"
+        },
+        "quantity": {
+          "$ref": "../common.schema.json#/$defs/quantity"
+        }
+      }
+    }
+  }
+}

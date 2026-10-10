@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hackathon-inventario.local/schemas/output/stock.reserved.schema.json",
+  "title": "stock.reserved",
+  "description": "Llave (key): código de la orden.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "source",
+    "key",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "const": "stock.reserved"
+    },
+    "event_version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "$ref": "../common.schema.json#/$defs/timestamp"
+    },
+    "source": {
+      "const": "inventory"
+    },
+    "key": {
+      "$ref": "../common.schema.json#/$defs/non_empty_string"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "reservation_id",
+        "work_order_id",
+        "part_id",
+        "quantity",
+        "inspection_item_id"
+      ],
+      "properties": {
+        "reservation_id": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "work_order_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "part_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "quantity": {
+          "$ref": "../common.schema.json#/$defs/quantity"
+        },
+        "inspection_item_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        }
+      }
+    }
+  }
+}

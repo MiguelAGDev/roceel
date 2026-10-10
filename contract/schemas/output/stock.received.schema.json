@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hackathon-inventario.local/schemas/output/stock.received.schema.json",
+  "title": "stock.received",
+  "description": "Llave (key): \"part:\" + part_id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "source",
+    "key",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "const": "stock.received"
+    },
+    "event_version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "$ref": "../common.schema.json#/$defs/timestamp"
+    },
+    "source": {
+      "const": "inventory"
+    },
+    "key": {
+      "$ref": "../common.schema.json#/$defs/non_empty_string"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "part_id",
+        "location_id",
+        "quantity",
+        "unit_cost",
+        "currency",
+        "purchase_line_id"
+      ],
+      "properties": {
+        "part_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "location_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "quantity": {
+          "$ref": "../common.schema.json#/$defs/quantity"
+        },
+        "unit_cost": {
+          "$ref": "../common.schema.json#/$defs/decimal"
+        },
+        "currency": {
+          "$ref": "../common.schema.json#/$defs/currency"
+        },
+        "purchase_line_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        }
+      }
+    }
+  }
+}

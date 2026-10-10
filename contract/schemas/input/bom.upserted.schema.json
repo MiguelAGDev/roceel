@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hackathon-inventario.local/schemas/input/bom.upserted.schema.json",
+  "title": "bom.upserted",
+  "description": "Llave (key): \"model:\" + model_id, ej. \"model:4\". Tópico: shop.catalog.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "source",
+    "key",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "const": "bom.upserted"
+    },
+    "event_version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "$ref": "../common.schema.json#/$defs/timestamp"
+    },
+    "source": {
+      "const": "shop-floor"
+    },
+    "key": {
+      "$ref": "../common.schema.json#/$defs/non_empty_string"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_id",
+        "model_name",
+        "brand",
+        "lines"
+      ],
+      "properties": {
+        "model_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "model_name": {
+          "$ref": "../common.schema.json#/$defs/non_empty_string"
+        },
+        "brand": {
+          "$ref": "../common.schema.json#/$defs/non_empty_string"
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "bom_line_id",
+              "part_id",
+              "name",
+              "group_name",
+              "unit",
+              "qty_per_unit",
+              "sort_order"
+            ],
+            "properties": {
+              "bom_line_id": {
+                "$ref": "../common.schema.json#/$defs/id"
+              },
+              "part_id": {
+                "anyOf": [
+                  {
+                    "$ref": "../common.schema.json#/$defs/id"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "$ref": "../common.schema.json#/$defs/non_empty_string"
+              },
+              "group_name": {
+                "anyOf": [
+                  {
+                    "$ref": "../common.schema.json#/$defs/non_empty_string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "unit": {
+                "$ref": "../common.schema.json#/$defs/unit"
+              },
+              "qty_per_unit": {
+                "anyOf": [
+                  {
+                    "$ref": "../common.schema.json#/$defs/quantity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sort_order": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "description": "Lista de partes COMPLETA del modelo: reemplaza a la anterior."
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hackathon-inventario.local/schemas/input/work_order.deleted.schema.json",
+  "title": "work_order.deleted",
+  "description": "Llave (key): código de la orden. Tópico: shop.work_orders.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "source",
+    "key",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "const": "work_order.deleted"
+    },
+    "event_version": {
+      "const": 1
+    },
+    "occurred_at": {
+      "$ref": "../common.schema.json#/$defs/timestamp"
+    },
+    "source": {
+      "const": "shop-floor"
+    },
+    "key": {
+      "$ref": "../common.schema.json#/$defs/non_empty_string"
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "work_order_id",
+        "code"
+      ],
+      "properties": {
+        "work_order_id": {
+          "$ref": "../common.schema.json#/$defs/id"
+        },
+        "code": {
+          "$ref": "../common.schema.json#/$defs/work_order_code"
+        }
+      }
+    }
+  }
+}

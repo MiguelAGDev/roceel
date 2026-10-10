@@ -1,0 +1,90 @@
+{
+  "input": {
+    "part.upserted": {
+      "topic": "shop.catalog",
+      "schema": "input/part.upserted.schema.json"
+    },
+    "location.upserted": {
+      "topic": "shop.catalog",
+      "schema": "input/location.upserted.schema.json"
+    },
+    "bom.upserted": {
+      "topic": "shop.catalog",
+      "schema": "input/bom.upserted.schema.json"
+    },
+    "work_order.opened": {
+      "topic": "shop.work_orders",
+      "schema": "input/work_order.opened.schema.json"
+    },
+    "work_order.stage_changed": {
+      "topic": "shop.work_orders",
+      "schema": "input/work_order.stage_changed.schema.json"
+    },
+    "work_order.deleted": {
+      "topic": "shop.work_orders",
+      "schema": "input/work_order.deleted.schema.json"
+    },
+    "inspection.submitted": {
+      "topic": "shop.inspections",
+      "schema": "input/inspection.submitted.schema.json"
+    },
+    "inspection.approved": {
+      "topic": "shop.inspections",
+      "schema": "input/inspection.approved.schema.json"
+    },
+    "inspection.rejected": {
+      "topic": "shop.inspections",
+      "schema": "input/inspection.rejected.schema.json"
+    },
+    "inspection.discarded": {
+      "topic": "shop.inspections",
+      "schema": "input/inspection.discarded.schema.json"
+    },
+    "inspection.voided": {
+      "topic": "shop.inspections",
+      "schema": "input/inspection.voided.schema.json"
+    },
+    "purchase.item_received": {
+      "topic": "shop.purchasing",
+      "schema": "input/purchase.item_received.schema.json"
+    }
+  },
+  "output": {
+    "stock.received": {
+      "topic": "inventory.events",
+      "schema": "output/stock.received.schema.json"
+    },
+    "stock.unmatched_receipt": {
+      "topic": "inventory.events",
+      "schema": "output/stock.unmatched_receipt.schema.json"
+    },
+    "stock.reserved": {
+      "topic": "inventory.events",
+      "schema": "output/stock.reserved.schema.json"
+    },
+    "stock.shortage_detected": {
+      "topic": "inventory.events",
+      "schema": "output/stock.shortage_detected.schema.json"
+    },
+    "stock.shortage_resolved": {
+      "topic": "inventory.events",
+      "schema": "output/stock.shortage_resolved.schema.json"
+    },
+    "stock.issued": {
+      "topic": "inventory.events",
+      "schema": "output/stock.issued.schema.json"
+    },
+    "stock.transferred": {
+      "topic": "inventory.events",
+      "schema": "output/stock.transferred.schema.json"
+    },
+    "stock.adjusted": {
+      "topic": "inventory.events",
+      "schema": "output/stock.adjusted.schema.json"
+    },
+    "stock.reorder_suggested": {
+      "topic": "inventory.events",
+      "schema": "output/stock.reorder_suggested.schema.json"
+    }
+  }
+}
