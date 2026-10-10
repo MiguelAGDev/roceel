@@ -10,5 +10,6 @@ Notas del equipo. El kit del reto vive en `kit/` y **no se modifica**.
 | [ejemplos-reales.md](ejemplos-reales.md) | Eventos reales vistos en el Console: duplicados, `items: []`, varias aprobaciones |
 | [backend.md](backend.md) | El backend: consumidor, reglas que más puntos mueven, API y orden de trabajo |
 | [frontend.md](frontend.md) | El frontend: vistas, flujos, escaneo y endpoints que faltan |
+| [exposicion-tecnica.md](exposicion-tecnica.md) | Guion para exponer: decisiones justificadas, estado real y revisión archivo por archivo |
 
 Fuentes de verdad, en orden: `kit/contract/` (gana siempre) → PDF del reto → estas notas.
