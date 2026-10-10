@@ -52,6 +52,29 @@ afterEach(() => {
   localStorage.clear();
 });
 
+describe("Piso · cámara según el dispositivo", () => {
+  const pointer = (coarse: boolean) =>
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: coarse && q.includes("coarse"), media: q }) as MediaQueryList);
+
+  it("en laptop no se ofrece la cámara; se teclea el código y el campo queda enfocado", () => {
+    pointer(false);
+    localStorage.removeItem("piso.camera");
+    mockFetch(routes());
+    renderPiso();
+    expect(screen.queryByRole("button", { name: "Usar cámara" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Solo teclado" })).toBeNull();
+    expect(screen.queryByLabelText("Vista de la cámara para escanear")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByLabelText("Teclear el código"));
+  });
+
+  it("en celular sí se ofrece la cámara", () => {
+    pointer(true);
+    mockFetch(routes());
+    renderPiso();
+    expect(screen.getByRole("button", { name: "Usar cámara" })).toBeTruthy();
+  });
+});
+
 describe("Piso · Retirar", () => {
   it("un SKU de varias piezas pide elegir (nunca toma la primera) y el SKU viaja sin alterar", async () => {
     const fetch = mockFetch(routes({

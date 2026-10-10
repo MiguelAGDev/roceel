@@ -421,6 +421,12 @@ export function errorMessage(err: ApiError, context?: "issue" | "transfer" | "co
   return err.detail;
 }
 
+/** Celular o tablet (el puntero principal es el dedo). En una laptop la cámara no sirve para escanear:
+ *  es la frontal y de foco fijo, así que ahí no se ofrece y se usa el teclado o una pistola lectora USB. */
+export function hasTouchCamera(): boolean {
+  return window.matchMedia?.("(pointer: coarse)").matches ?? false;
+}
+
 /** Semáforo del consumidor para la barra superior. */
 export function consumerHealth(c: ConsumerStatus | undefined, failed: boolean): { tone: "ok" | "warn" | "bad" | "unknown"; text: string } {
   if (failed) return { tone: "bad", text: "Sin conexión con el servicio" };

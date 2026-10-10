@@ -3,7 +3,7 @@
 import { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  api, ApiError, catalog, errorMessage, fmtQty, fmtSigned, ORDER_CODE, partLabel, stageLabel, store, useApi,
+  api, ApiError, catalog, errorMessage, fmtQty, fmtSigned, hasTouchCamera, ORDER_CODE, partLabel, stageLabel, store, useApi,
   type Location, type PartSummary,
 } from "../api";
 import { IconAlert, IconCheck, IconCount, IconKeyboard, IconCamera, IconMinus, IconOut, IconPlus, IconTransfer, IconTrash, IconX } from "../components/icons";
@@ -35,6 +35,8 @@ export default function Piso() {
     return initialState(m, store.get(KEY_ORDER), orden ? { order: orden, quantity: Number(params.get("cant")) || undefined } : undefined);
   });
   const [issuedBy, setIssuedBy] = useState(() => store.get(KEY_ISSUED_BY));
+  // En laptop no se ofrece la cámara: se teclea el código o se usa una pistola lectora USB.
+  const [canCamera] = useState(hasTouchCamera);
   const [camera, setCamera] = useState(() => store.get(KEY_CAMERA) !== "off");
   const sendingRef = useRef(false);
   const lookingUp = useRef(false);
@@ -59,12 +61,15 @@ export default function Piso() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Foco al panel del paso actual: el lector de pantalla anuncia el cambio y el teclado sigue el flujo.
-  useEffect(() => {
-    panelRef.current?.focus({ preventScroll: true });
-  }, [state.step]);
-
   const scanStep = state.step === "location" || state.step === "to" || state.step === "part" || (state.step === "lines" && !state.part);
+
+  // Foco al panel del paso actual: el lector de pantalla anuncia el cambio y el teclado sigue el flujo.
+  // En laptop, en los pasos de escaneo, el foco va directo al campo del código: una pistola lectora USB
+  // escribe ahí y manda Enter sin tocar nada.
+  useEffect(() => {
+    const manual = !canCamera && scanStep ? document.getElementById("manual-code") : null;
+    (manual ?? panelRef.current)?.focus({ preventScroll: true });
+  }, [state.step, state.part, canCamera, scanStep]);
   const wants: "location" | "part" = state.step === "location" || state.step === "to" ? "location" : "part";
 
   async function handleCode(raw: string) {
@@ -170,12 +175,14 @@ export default function Piso() {
                     ? state.lines.length ? "Escanea otra pieza o termina" : "Escanea la primera pieza contada"
                     : `Escanea ${state.step === "part" ? "la pieza" : state.step === "to" ? "la ubicación destino" : state.mode === "transferir" ? "la ubicación origen" : "la ubicación"}`}
                 </div>
-                {camera ? <Scanner onScan={handleCode} paused={state.sending} /> : null}
-                <div className="row" style={{ justifyContent: "flex-end" }}>
-                  <button type="button" className="btn btn-quiet" onClick={() => { setCamera(!camera); store.set(KEY_CAMERA, camera ? "off" : "on"); }}>
-                    {camera ? <><IconKeyboard />Solo teclado</> : <><IconCamera />Usar cámara</>}
-                  </button>
-                </div>
+                {canCamera && camera ? <Scanner onScan={handleCode} paused={state.sending} /> : null}
+                {canCamera && (
+                  <div className="row" style={{ justifyContent: "flex-end" }}>
+                    <button type="button" className="btn btn-quiet" onClick={() => { setCamera(!camera); store.set(KEY_CAMERA, camera ? "off" : "on"); }}>
+                      {camera ? <><IconKeyboard />Solo teclado</> : <><IconCamera />Usar cámara</>}
+                    </button>
+                  </div>
+                )}
                 <ManualCode onSubmit={handleCode} placeholder={wants === "location" ? "U-101" : "SKU o P-24"} />
                 {wants === "part" && <PartSearch label="o busca la pieza" onPick={(p) => dispatch({ type: "part", part: p })} />}
                 {state.step === "lines" && <CountLines state={state} dispatch={dispatch} />}

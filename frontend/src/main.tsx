@@ -3,7 +3,7 @@
 import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { HashRouter, Link, Navigate, NavLink, Route, Routes } from "react-router-dom";
-import { api, consumerHealth, fmtDateTime, useApi } from "./api";
+import { api, consumerHealth, fmtDateTime, hasTouchCamera, useApi } from "./api";
 import { IconDashboard, IconOrder, IconScan, IconWarehouse } from "./components/icons";
 import { Loading } from "./components/ui";
 import "./styles.css";
@@ -16,7 +16,7 @@ const Kardex = lazy(() => import("./pages/Kardex"));
 
 /** "/" lleva al Piso en un celular y al Tablero en una computadora. */
 function Home() {
-  const phone = window.matchMedia("(pointer: coarse)").matches && window.innerWidth < 768;
+  const phone = hasTouchCamera() && window.innerWidth < 768;
   return <Navigate to={phone ? "/piso" : "/tablero"} replace />;
 }
 
