@@ -4,7 +4,7 @@ import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { HashRouter, Link, Navigate, NavLink, Route, Routes } from "react-router-dom";
 import { api, consumerHealth, fmtDateTime, useApi } from "./api";
-import { IconDashboard, IconOrder, IconScan, IconWarehouse } from "./components/icons";
+import { IconDashboard, IconHistory, IconOrder, IconScan, IconWarehouse } from "./components/icons";
 import { Loading } from "./components/ui";
 import "./styles.css";
 
@@ -39,6 +39,7 @@ const NAV = [
   { to: "/tablero", label: "Tablero", Icon: IconDashboard },
   { to: "/almacen", label: "Almacén", Icon: IconWarehouse },
   { to: "/ordenes", label: "Órdenes", Icon: IconOrder },
+  { to: "/kardex", label: "Kardex", Icon: IconHistory },
 ];
 
 function App() {
@@ -67,6 +68,7 @@ function App() {
             <Route path="/almacen" element={<Almacen />} />
             <Route path="/ordenes" element={<Orden />} />
             <Route path="/ordenes/:code" element={<Orden />} />
+            <Route path="/kardex" element={<Kardex />} />
             <Route path="/kardex/:partId" element={<Kardex />} />
             <Route path="*" element={<div className="empty"><h1>Página no encontrada</h1><p><Link to="/">Ir al inicio</Link></p></div>} />
           </Routes>
