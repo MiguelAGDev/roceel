@@ -53,3 +53,5 @@ saldo*.json
 !kit/data/events.jsonl
 !kit/contract/**
 !kit/labels/**
+
+CLAUDE.md

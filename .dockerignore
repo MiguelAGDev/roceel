@@ -1,0 +1,14 @@
+# La imagen del backend se construye desde la raíz (necesita backend/ y frontend/).
+.git
+kit
+context
+db
+**/node_modules
+frontend/dist
+**/.venv
+**/venv
+**/__pycache__
+**/*.pyc
+**/.env
+**/.env.*
+**/.pytest_cache

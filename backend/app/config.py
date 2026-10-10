@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://inv:inv@localhost:5432/inventory")
 
@@ -9,6 +10,8 @@ KAFKA_GROUP_ID = os.environ.get("KAFKA_GROUP_ID", "inventory-service")
 TOPIC_OUT = os.environ.get("TOPIC_OUT", "inventory.events")
 # Orígenes que pueden llamar a la API desde un navegador (el frontend en desarrollo). "*" = todos.
 CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
+# Pantallas compiladas (frontend/dist), servidas en /ui. En la imagen las copia el Dockerfile a /app/static.
+UI_DIR = Path(os.environ.get("UI_DIR", Path(__file__).resolve().parent.parent / "static"))
 TOPIC_DLQ = os.environ.get("TOPIC_DLQ", "inventory.dlq")
 TOPIC_CATALOG = os.environ.get("TOPIC_CATALOG", "shop.catalog")
 # "Catálogo primero": cuánto se espera sin mensajes nuevos antes de dar por leído el catálogo
