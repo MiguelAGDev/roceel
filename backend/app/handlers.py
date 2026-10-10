@@ -3,7 +3,8 @@ por el consumidor y el sobre completo del evento. Si lanza una excepción, la tr
 se deshace (y el evento tampoco queda marcado como procesado)."""
 from decimal import Decimal
 
-from .domain import PART_LOCK_NAMESPACE, RECEIVING_LOCATION_ID, key_for_part, key_for_purchase_line
+from .domain import (PART_LOCK_NAMESPACE, RECEIVING_LOCATION_ID, MissingDependency, key_for_part,
+                     key_for_purchase_line)
 from .outbox import emit
 from .reservations import fill_shortages, reconcile_need, refresh_reorder
 
@@ -85,7 +86,7 @@ def work_order_stage_changed(conn, env):
         "UPDATE work_orders SET stage = %s WHERE work_order_id = %s", (d["to_stage"], d["work_order_id"])
     )
     if cur.rowcount == 0:
-        raise LookupError(f"la orden {d['work_order_id']} todavía no existe")
+        raise MissingDependency(f"orden {d['work_order_id']} no existe")
 
 
 def purchase_item_received(conn, env):
@@ -148,6 +149,8 @@ def lock_part(conn, part_id: int) -> None:
 def store_inspection(conn, env, status: str) -> None:
     """Guarda la inspección y sus líneas tal como llegaron (copia cruda)."""
     d = env["data"]
+    if conn.execute("SELECT 1 FROM work_orders WHERE work_order_id = %s", (d["work_order_id"],)).fetchone() is None:
+        raise MissingDependency(f"orden {d['work_order_id']} no existe")
     conn.execute(
         """INSERT INTO inspections (inspection_id, work_order_id, kind, status, approved_by, approved_at, updated_at)
            VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -181,7 +184,7 @@ def inspection_closed(status: str):
             (status, d.get("reason"), env["occurred_at"], d["inspection_id"]),
         )
         if cur.rowcount == 0:
-            raise LookupError(f"la inspección {d['inspection_id']} todavía no existe")
+            raise MissingDependency(f"inspección {d['inspection_id']} no existe")
     return handler
 
 
@@ -191,15 +194,26 @@ def inspection_approved(conn, env):
     store_inspection(conn, env, "approved")
 
     buy = [it for it in d["items"] if it["action"] == "buy"]
+    # Todo lo que referencia debe existir ya; si no, el evento espera (regla 20) en vez de
+    # inventar una necesidad con cantidad desconocida.
+    bom_qty = dict(conn.execute(
+        "SELECT bom_line_id, qty_per_unit FROM bom_lines WHERE bom_line_id = ANY(%s::bigint[])",
+        ([it["bom_line_id"] for it in buy],)).fetchall())
+    for it in buy:
+        if it["bom_line_id"] not in bom_qty:
+            raise MissingDependency(f"línea de BOM {it['bom_line_id']} no existe")
     parts = sorted({it["part_id"] for it in buy if it["part_id"] is not None})
+    known = {r[0] for r in conn.execute("SELECT part_id FROM parts WHERE part_id = ANY(%s::bigint[])", (parts,))}
+    for part_id in parts:
+        if part_id not in known:
+            raise MissingDependency(f"pieza {part_id} no existe")
     for part_id in parts:  # candados en orden ascendente: así dos procesos no se bloquean entre sí
         lock_part(conn, part_id)
 
     for it in buy:
         required = it["quantity"]
         if required is None:  # sin cantidad capturada: se usa la de la lista de partes
-            row = conn.execute("SELECT qty_per_unit FROM bom_lines WHERE bom_line_id = %s", (it["bom_line_id"],)).fetchone()
-            required = row[0] if row else None
+            required = bom_qty[it["bom_line_id"]]
         reconcile_need(conn, d["work_order_id"], code, it, required, d["inspection_id"], at)
 
     for part_id in parts:
