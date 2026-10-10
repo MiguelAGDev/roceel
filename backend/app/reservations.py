@@ -1,7 +1,7 @@
 """Necesidades, reservas y faltantes de las órdenes.
 
 Todas estas funciones se llaman dentro de la transacción del evento y con el candado de la
-pieza ya tomado (ver handlers.lock_part)."""
+pieza ya tomado (ver ledger.lock_part)."""
 from .outbox import emit
 
 

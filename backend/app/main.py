@@ -5,6 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from . import db, repo
+from .domain import Conflict, NotFound
 from .schemas import CountIn, IssueIn, ResolveIn, TransferIn
 
 
@@ -23,6 +24,16 @@ app = FastAPI(title="Servicio de inventario del taller", lifespan=lifespan)
 async def validation_error(request: Request, exc: RequestValidationError):
     detail = "; ".join(f"{'.'.join(str(p) for p in e['loc'][1:])}: {e['msg']}" for e in exc.errors())
     return JSONResponse(status_code=422, content={"detail": detail})
+
+
+@app.exception_handler(NotFound)
+async def not_found(request: Request, exc: NotFound):
+    return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+
+@app.exception_handler(Conflict)
+async def conflict(request: Request, exc: Conflict):
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
 
 
 @app.get("/health")

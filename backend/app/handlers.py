@@ -3,10 +3,10 @@ por el consumidor y el sobre completo del evento. Si lanza una excepción, la tr
 se deshace (y el evento tampoco queda marcado como procesado)."""
 from decimal import Decimal
 
-from .domain import (PART_LOCK_NAMESPACE, RECEIVING_LOCATION_ID, MissingDependency, key_for_part,
-                     key_for_purchase_line)
+from .domain import RECEIVING_LOCATION_ID, MissingDependency, key_for_purchase_line
+from .ledger import lock_part, post_receipt
 from .outbox import emit
-from .reservations import fill_shortages, reconcile_need, refresh_reorder
+from .reservations import reconcile_need, refresh_reorder
 
 
 def part_upserted(conn, env):
@@ -119,31 +119,15 @@ def purchase_item_received(conn, env):
         return  # esa línea de compra ya se procesó (llegó con otro event_id)
 
     if status == "matched":
-        lock_part(conn, part_id)
-        conn.execute(
-            """INSERT INTO movements (movement_type, part_id, location_id, qty, unit_cost, currency,
-                                      purchase_line_id, source_event_id, occurred_at)
-               VALUES ('receipt', %s, %s, %s, %s, %s, %s, %s, %s)""",
-            (part_id, RECEIVING_LOCATION_ID, d["quantity"], Decimal(d["unit_price"]), d["currency"],
-             line_id, env["event_id"], d["received_at"]),
-        )
-        emit(conn, "stock.received", key_for_part(part_id), {
-            "part_id": part_id, "location_id": RECEIVING_LOCATION_ID, "quantity": d["quantity"],
-            "unit_cost": d["unit_price"], "currency": d["currency"], "purchase_line_id": line_id,
-        }, d["received_at"])
-        # La entrada surte faltantes: primero los de la orden de la compra, luego los más antiguos.
-        fill_shortages(conn, part_id, d["work_order_code"], d["received_at"])
-        refresh_reorder(conn, part_id, d["received_at"])
+        post_receipt(conn, line_id=line_id, part_id=part_id, location_id=RECEIVING_LOCATION_ID,
+                     quantity=d["quantity"], unit_cost=d["unit_price"], currency=d["currency"],
+                     work_order_code=d["work_order_code"], received_at=d["received_at"],
+                     source_event_id=env["event_id"])
     elif status == "unmatched":
         emit(conn, "stock.unmatched_receipt", key_for_purchase_line(line_id), {
             "purchase_line_id": line_id, "part_number": d["part_number"],
             "description": d["description"], "quantity": d["quantity"],
         }, d["received_at"])
-
-
-def lock_part(conn, part_id: int) -> None:
-    """Candado por pieza hasta el fin de la transacción: dos procesos no pueden tocar su saldo a la vez."""
-    conn.execute("SELECT pg_advisory_xact_lock(%s::int, %s::int)", (PART_LOCK_NAMESPACE, part_id))
 
 
 def store_inspection(conn, env, status: str) -> None:

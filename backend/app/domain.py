@@ -1,7 +1,18 @@
 """Constantes del contrato que se usan en varios lugares."""
 
 RECEIVING_LOCATION_ID = 100  # U-100: las compras de reabasto entran aquí (contrato, regla 11)
-PART_LOCK_NAMESPACE = 1      # pg_advisory_xact_lock(1, part_id)
+
+# Todas las fechas de la API salen con el mismo formato (UTC, a segundos), para que ordenarlas
+# como texto dé el mismo orden que como fecha.
+ISO_UTC = """'YYYY-MM-DD"T"HH24:MI:SS"Z"'"""
+
+
+class NotFound(Exception):
+    """La pieza, ubicación, orden o recepción pedida no existe (la API responde 404)."""
+
+
+class Conflict(Exception):
+    """La operación choca con el estado actual: saldo insuficiente, ya resuelta... (409)."""
 
 
 class MissingDependency(Exception):
