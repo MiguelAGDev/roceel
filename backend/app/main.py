@@ -2,9 +2,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import db, repo
+from .config import CORS_ORIGINS
 from .domain import Conflict, NotFound
 from .schemas import CountIn, IssueIn, ResolveIn, TransferIn
 
@@ -17,6 +19,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Servicio de inventario del taller", lifespan=lifespan)
+
+# Sin esto el navegador bloquea las llamadas del frontend (otro origen, p. ej. Vite en :5173).
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 
 # El contrato pide errores como {"detail": "<mensaje>"} (FastAPI manda una lista por defecto).

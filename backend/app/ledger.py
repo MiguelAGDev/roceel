@@ -3,7 +3,7 @@
 Todas se llaman dentro de una transacción abierta por quien las usa."""
 from decimal import Decimal
 
-from .domain import ISO_UTC, key_for_part
+from .domain import ISO_UTC, RECEIVING_LOCATION_ID, MissingDependency, key_for_part
 from .outbox import emit
 from .reservations import fill_shortages, refresh_reorder
 
@@ -36,6 +36,49 @@ def add_movement(conn, movement_type: str, part_id: int, location_id: int, qty: 
     ).fetchone()
     return {"movement_id": movement_id, "type": movement_type, "part_id": part_id, "location_id": location_id,
             "quantity": qty, "occurred_at": occurred, "reference": reference}
+
+
+def match_receipt(conn, part_number: str) -> tuple[str, int | None, str | None]:
+    """Relaciona el número de parte de una compra (texto libre) con el sku del catálogo, sin importar
+    mayúsculas ni espacios. Devuelve (status, part_id, motivo): 'matched' si hay exactamente una pieza;
+    'unmatched' con motivo 'no_match' (ninguna) o 'ambiguous' (varias)."""
+    matches = [r[0] for r in conn.execute("SELECT part_id FROM parts WHERE sku_norm = normalize_sku(%s)", (part_number,))]
+    if len(matches) == 1:
+        return "matched", matches[0], None
+    return "unmatched", None, ("no_match" if not matches else "ambiguous")
+
+
+def rematch_receipts(conn, sku_norms) -> None:
+    """Llegó (o cambió) un SKU: las recepciones sin relacionar que le correspondan se vuelven a evaluar.
+    Si ahora coinciden con exactamente una pieza, entran como si hubieran coincidido desde el principio
+    (con la fecha de la recepción); si no, solo se actualiza su motivo. Así el estado en vivo converge al
+    mismo que da releer los tópicos con el catálogo completo (regla 23).
+    Candados: primero las filas de las recepciones y luego la pieza, igual que `resolve`."""
+    norms = sorted(n for n in sku_norms if n)
+    if not norms:
+        return
+    rows = conn.execute(
+        """SELECT purchase_line_id, part_number, quantity, unit_price::text, currency, work_order_code, received_at
+             FROM purchase_receipts
+            WHERE match_status = 'unmatched' AND part_number_norm = ANY(%s)
+            ORDER BY received_at, purchase_line_id FOR UPDATE""",
+        (norms,),
+    ).fetchall()
+    for line_id, part_number, quantity, unit_cost, currency, work_order_code, received_at in rows:
+        status, part_id, reason = match_receipt(conn, part_number)
+        if status != "matched":
+            conn.execute(
+                "UPDATE purchase_receipts SET unmatched_reason = %s WHERE purchase_line_id = %s", (reason, line_id))
+            continue
+        if conn.execute("SELECT 1 FROM locations WHERE location_id = %s", (RECEIVING_LOCATION_ID,)).fetchone() is None:
+            raise MissingDependency(f"ubicación {RECEIVING_LOCATION_ID} no existe")
+        conn.execute(
+            """UPDATE purchase_receipts SET match_status = 'matched', unmatched_reason = NULL, part_id = %s
+                WHERE purchase_line_id = %s""",
+            (part_id, line_id),
+        )
+        post_receipt(conn, line_id=line_id, part_id=part_id, location_id=RECEIVING_LOCATION_ID, quantity=quantity,
+                     unit_cost=unit_cost, currency=currency, work_order_code=work_order_code, received_at=received_at)
 
 
 def post_receipt(conn, *, line_id: int, part_id: int, location_id: int, quantity: int, unit_cost: str,

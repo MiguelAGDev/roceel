@@ -26,7 +26,7 @@ from .domain import MissingDependency
 from .handlers import HANDLERS
 
 # Al procesar uno de estos, los que esperaban justo eso se reintentan de inmediato.
-WAKE_TYPES = {"part.upserted", "bom.upserted", "work_order.opened"}
+WAKE_TYPES = {"part.upserted", "location.upserted", "bom.upserted", "work_order.opened"}
 
 
 def apply_event(conn, env: dict, topic: str) -> str:
@@ -70,6 +70,8 @@ def _waited_for(env: dict) -> list[str]:
         return [f"línea de BOM {line['bom_line_id']} no existe" for line in d["lines"]]
     if env["event_type"] == "work_order.opened":
         return [f"orden {d['work_order_id']} no existe"]
+    if env["event_type"] == "location.upserted":
+        return [f"ubicación {d['location_id']} no existe"]
     return []
 
 

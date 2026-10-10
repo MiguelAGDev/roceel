@@ -1,6 +1,9 @@
-# Todo el proyecto con un comando: el kit (Redpanda, Console, simulador) + Postgres + backend.
+# Todo el proyecto con un comando: el kit (Redpanda, Console, simulador) + Postgres + API + consumidor.
 #
 #   docker compose up -d --build
+#
+# Si el kit ya está corriendo por separado (cd kit && docker compose up), apágalo antes:
+# comparten puertos (19092, 8080, 8090).
 #
 # El schema (db/schema.sql) solo se carga cuando el volumen de Postgres está vacío.
 # Si lo cambias:  docker compose down -v   y vuelve a levantar.
@@ -26,15 +29,36 @@ services:
       timeout: 5s
       retries: 20
 
+  # API HTTP (puerto 8000). No lee Redpanda: consulta y opera sobre Postgres.
   backend:
     build: ./backend
+    image: inventory-backend
+    environment:
+      DATABASE_URL: postgresql://inv:inv@postgres:5432/inventory
+      CORS_ORIGINS: "*"   # el frontend en desarrollo (Vite) vive en otro origen
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Consumidor: lee los tópicos del taller, actualiza Postgres y publica los stock.* en inventory.events.
+  # La API necesita que esté corriendo (el publicador de avisos vive aquí). Debe haber UNO solo.
+  # Si la base está vacía (primer arranque o reconstrucción) relee todo desde el inicio, catálogo primero.
+  consumer:
+    build: ./backend
+    image: inventory-backend
+    command: ["python", "-m", "app.consumer"]
     environment:
       DATABASE_URL: postgresql://inv:inv@postgres:5432/inventory
       KAFKA_BROKERS: redpanda:9092
-    ports:
-      - "8000:8000"
+      KAFKA_GROUP_ID: inventory-service
+    restart: unless-stopped
     depends_on:
       postgres:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
 
 volumes:

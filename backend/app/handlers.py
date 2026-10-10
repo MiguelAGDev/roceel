@@ -4,7 +4,7 @@ se deshace (y el evento tampoco queda marcado como procesado)."""
 from decimal import Decimal
 
 from .domain import RECEIVING_LOCATION_ID, MissingDependency, key_for_purchase_line
-from .ledger import lock_part, post_receipt
+from .ledger import lock_part, match_receipt, post_receipt, rematch_receipts
 from .outbox import emit
 from .reservations import reconcile_need, refresh_reorder, release_need
 
@@ -12,7 +12,8 @@ from .reservations import reconcile_need, refresh_reorder, release_need
 def part_upserted(conn, env):
     d = env["data"]
     unit = d["unit"] or {}
-    conn.execute(
+    old = conn.execute("SELECT sku_norm FROM parts WHERE part_id = %s", (d["part_id"],)).fetchone()
+    new_norm = conn.execute(
         """INSERT INTO parts (part_id, sku, name, family, "group", subgroup,
                               unit_id, unit_name, image_url, active)
            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -20,10 +21,14 @@ def part_upserted(conn, env):
              sku = EXCLUDED.sku, name = EXCLUDED.name, family = EXCLUDED.family,
              "group" = EXCLUDED."group", subgroup = EXCLUDED.subgroup,
              unit_id = EXCLUDED.unit_id, unit_name = EXCLUDED.unit_name,
-             image_url = EXCLUDED.image_url, active = EXCLUDED.active""",
+             image_url = EXCLUDED.image_url, active = EXCLUDED.active
+           RETURNING sku_norm""",
         (d["part_id"], d["sku"], d["name"], d["family"], d["group"], d["subgroup"],
          unit.get("id"), unit.get("name"), d["image_url"], d["active"]),
-    )
+    ).fetchone()[0]
+    # Un SKU nuevo o cambiado (el anterior también: al salir puede quitar una ambigüedad) puede dar
+    # pareja a recepciones que llegaron antes que él.
+    rematch_receipts(conn, {old[0] if old else None, new_norm})
 
 
 def location_upserted(conn, env):
@@ -97,12 +102,7 @@ def purchase_item_received(conn, env):
         status, part_id, reason = "not_inventory", None, None  # material para un cliente: no entra
     else:
         # El número de parte llega como texto libre: se compara contra el sku normalizado.
-        matches = [r[0] for r in conn.execute(
-            "SELECT part_id FROM parts WHERE sku_norm = normalize_sku(%s)", (d["part_number"],))]
-        if len(matches) == 1:
-            status, part_id, reason = "matched", matches[0], None
-        else:
-            status, part_id, reason = "unmatched", None, ("no_match" if not matches else "ambiguous")
+        status, part_id, reason = match_receipt(conn, d["part_number"])
 
     inserted = conn.execute(
         """INSERT INTO purchase_receipts
