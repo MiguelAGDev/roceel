@@ -18,6 +18,8 @@ Levanta el kit (Redpanda, consola y simulador del taller), Postgres, la API y el
 
 | Qué | Dónde |
 |---|---|
+| Pantallas (almacén, órdenes, kardex, tablero, piso) | http://localhost:8000/ui/ |
+| Pantallas desde el celular (HTTPS, para la cámara) | https://&lt;ip-de-la-pc&gt;:8443/ui/ |
 | API HTTP | http://localhost:8000 (documentación interactiva en `/docs`) |
 | Consola de Redpanda (ver tópicos) | http://localhost:8080 |
 | Panel del simulador | http://localhost:8090 |
@@ -77,6 +79,29 @@ export DATABASE_URL=postgresql://inv:inv@localhost:5432/inventory          # (Po
 
 El consumidor desde tu máquina usa el broker `localhost:19092` (el valor por omisión). Variables en
 [`backend/.env.example`](backend/.env.example).
+
+## Pantallas (frontend)
+
+React 18 + TypeScript + Vite en [`frontend/`](frontend). La imagen del backend las compila (etapa Node de
+`backend/Dockerfile`) y FastAPI las sirve en `/ui`: mismo origen que la API, sin servicio extra.
+
+- **Celular (escaneo):** la cámara solo abre en HTTPS. El servicio `backend-https` sirve lo mismo en el `:8443` con un
+  certificado autofirmado. Con el celular en la misma red Wi‑Fi, abrir `https://<ip-de-la-pc>:8443/ui/` y aceptar el
+  aviso una vez (vuelve a pedirlo tras cada rebuild). Si Windows bloquea el puerto, permitir el 8443 en el firewall.
+  Si la cámara falla, Piso siempre deja teclear el código o buscar la pieza.
+- **Rutas:** `#/piso` (Retirar · Transferir · Contar), `#/tablero`, `#/almacen`, `#/ordenes/<código>`, `#/kardex/<part_id>`.
+- **Rutas extra de la API** que usan (el contrato permite agregarlas): `GET /parts?q=`, `GET /parts/{id}`,
+  `GET /parts/{id}/policy`, `GET /scan/{código}`, `GET /locations`, `GET /work-orders`, `GET /dashboard`.
+
+Desarrollo con recarga en caliente (con la API arriba en :8000):
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173/ui/ — llama a la API en :8000
+npm run check      # eslint + tsc
+npm test           # vitest
+```
 
 ## Para quien trabaja en el frontend
 

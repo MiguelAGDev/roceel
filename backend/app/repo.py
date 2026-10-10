@@ -2,8 +2,10 @@
 Las operaciones que escriben (transfer, count, issue, resolve_receipt) toman el candado de la
 pieza, validan antes de escribir y dejan su aviso de salida en el outbox, todo en una transacción.
 Los errores se lanzan como NotFound (404) o Conflict (409); main.py los traduce."""
+import re
 import uuid
 from contextlib import contextmanager
+from datetime import date, timedelta
 
 from psycopg import errors as pg_errors
 
@@ -273,3 +275,255 @@ def count(location_id: int, reason: str, lines):
                 "part_id": part_id, "location_id": location_id, "delta": delta, "reason": reason}, at)
             adjustments.append({"part_id": part_id, "delta": delta})
     return {"adjustments": adjustments}
+
+
+# ---------------------------------------------------------------------------------------------
+# Rutas extra para las pantallas (fuera del contrato, que permite agregar rutas).
+# ---------------------------------------------------------------------------------------------
+
+PART_SUMMARY = """
+    SELECT p.part_id, p.sku, p.name, p.family, p.unit_name, a.on_hand, a.reserved, a.available,
+           (SELECT COUNT(*) FROM shortages s WHERE s.part_id = p.part_id AND s.status = 'open')::int,
+           pol.min_qty, pol.max_qty
+      FROM parts p
+      JOIN part_availability a USING (part_id)
+      LEFT JOIN part_policies pol USING (part_id)"""
+
+
+def _part_summary(r) -> dict:
+    return {"part_id": r[0], "sku": r[1], "name": r[2], "family": r[3], "unit_name": r[4], "on_hand": r[5],
+            "reserved": r[6], "available": r[7], "open_shortages": r[8], "min_qty": r[9], "max_qty": r[10]}
+
+
+def _location(r) -> dict:
+    return {"location_id": r[0], "code": r[1], "name": r[2], "is_workbench": r[3], "active": r[4]}
+
+
+def list_parts(q: str | None, limit: int = 500):
+    """Piezas activas con sus totales, para la tabla de existencias y el buscador de piezas.
+    `q` busca en nombre y SKU (sin importar mayúsculas) o por part_id exacto."""
+    q = (q or "").strip() or None
+    like = f"%{q}%" if q else None
+    with db.tx() as conn:
+        rows = conn.execute(
+            PART_SUMMARY + """
+             WHERE p.active
+               AND (%s::text IS NULL OR p.name ILIKE %s OR p.sku ILIKE %s OR p.part_id::text = %s)
+             ORDER BY p.name, p.part_id LIMIT %s""",
+            (q, like, like, q, limit),
+        ).fetchall()
+    return {"items": [_part_summary(r) for r in rows]}
+
+
+def get_part(part_id: int):
+    """Una pieza con sus totales (para el encabezado del kardex). None si no existe."""
+    with db.tx() as conn:
+        row = conn.execute(PART_SUMMARY + " WHERE p.part_id = %s", (part_id,)).fetchone()
+    return _part_summary(row) if row else None
+
+
+LOCATION_CODE = re.compile(r"^U-\d{3}$", re.IGNORECASE)
+PART_LABEL = re.compile(r"^P-(\d+)$", re.IGNORECASE)
+
+
+def scan(code: str):
+    """Traduce lo que leyó el escáner (contrato §5): `U-101` es una ubicación, `P-24` una pieza sin SKU
+    y cualquier otra cosa un SKU, comparado como en las compras (sin mayúsculas ni espacios en los
+    extremos). Un SKU puede ser de varias piezas y un código de ubicación puede repetirse: se devuelven
+    todas y la pantalla pide elegir. None si nada coincide."""
+    text = code.strip()
+    with db.tx() as conn:
+        if LOCATION_CODE.match(text):
+            rows = conn.execute(
+                """SELECT location_id, code, name, is_workbench, active FROM locations
+                    WHERE upper(code) = upper(%s) ORDER BY active DESC, location_id""",
+                (text,),
+            ).fetchall()
+            if rows:
+                locations = [_location(r) for r in rows]
+                return {"kind": "location", "location": locations[0], "locations": locations}
+        label = PART_LABEL.match(text)
+        if label:
+            rows = conn.execute(PART_SUMMARY + " WHERE p.part_id = %s", (int(label.group(1)),)).fetchall()
+        else:
+            rows = conn.execute(
+                PART_SUMMARY + " WHERE p.sku_norm = normalize_sku(%s) ORDER BY p.active DESC, p.part_id", (code,)
+            ).fetchall()
+    if not rows:
+        return None
+    return {"kind": "part", "parts": [_part_summary(r) for r in rows]}
+
+
+def list_locations():
+    with db.tx() as conn:
+        rows = conn.execute(
+            "SELECT location_id, code, name, is_workbench, active FROM locations ORDER BY code, location_id"
+        ).fetchall()
+    return {"items": [_location(r) for r in rows]}
+
+
+def list_work_orders():
+    """Órdenes vivas (sin las dadas de baja), de la más reciente a la más antigua, con su avance."""
+    with db.tx() as conn:
+        rows = conn.execute(
+            f"""SELECT w.work_order_id, w.code, w.stage, w.department,
+                       to_char(w.received_at AT TIME ZONE 'UTC', {ISO_UTC}),
+                       COUNT(m.bom_line_id)::int,
+                       (COUNT(m.bom_line_id) FILTER (WHERE m.missing IS NULL OR m.missing > 0))::int
+                  FROM work_orders w
+                  LEFT JOIN work_order_materials m USING (work_order_id)
+                 WHERE w.deleted_at IS NULL
+                 GROUP BY w.work_order_id
+                 ORDER BY w.received_at DESC NULLS LAST, w.code DESC"""
+        ).fetchall()
+    return {"items": [
+        {"work_order_id": r[0], "code": r[1], "stage": r[2], "department": r[3], "received_at": r[4],
+         "lines": r[5], "lines_missing": r[6]} for r in rows]}
+
+
+def get_policy(part_id: int):
+    """Política mínimo/máximo de una pieza; los campos van en null si no tiene. None si la pieza no existe."""
+    with db.tx() as conn:
+        if conn.execute("SELECT 1 FROM parts WHERE part_id = %s", (part_id,)).fetchone() is None:
+            return None
+        row = conn.execute(
+            "SELECT min_qty, max_qty, reorder_qty, lead_time_days FROM part_policies WHERE part_id = %s",
+            (part_id,),
+        ).fetchone() or (None, None, None, None)
+    return {"part_id": part_id, "min_qty": row[0], "max_qty": row[1], "reorder_qty": row[2],
+            "lead_time_days": row[3]}
+
+
+def part_work_orders(part_id: int):
+    """Órdenes vivas que esperan una pieza (algo reservado por entregar o un faltante abierto), para que
+    Piso llene la orden sola al retirar. Una pieza puede estar en varias líneas de la misma orden: se suman.
+    None si la pieza no existe."""
+    with db.tx() as conn:
+        if conn.execute("SELECT 1 FROM parts WHERE part_id = %s", (part_id,)).fetchone() is None:
+            return None
+        rows = conn.execute(
+            """SELECT m.work_order_id, m.code, w.stage,
+                      SUM(m.required)::int, SUM(m.reserved)::int, SUM(m.issued)::int,
+                      COALESCE(SUM(m.missing), 0)::int, bool_or(m.missing IS NULL)
+                 FROM work_order_materials m JOIN work_orders w USING (work_order_id)
+                WHERE m.part_id = %s AND w.deleted_at IS NULL
+                GROUP BY m.work_order_id, m.code, w.stage
+               HAVING SUM(m.reserved) > 0 OR bool_or(m.missing IS NULL OR m.missing > 0)
+                ORDER BY SUM(m.reserved) DESC, m.code""",
+            (part_id,),
+        ).fetchall()
+    return {"items": [
+        {"work_order_id": r[0], "code": r[1], "stage": r[2], "required": r[3], "reserved": r[4], "issued": r[5],
+         "missing": r[6], "missing_unknown": r[7]} for r in rows]}
+
+
+FORECAST_WEEKS = 4  # semanas que se promedian y semanas que se proyectan
+IDLE_DAYS = 30
+
+
+def dashboard():
+    """Indicadores del tablero. La demanda sale de las necesidades de las inspecciones aprobadas (el
+    dataset no trae salidas: esas solo nacen de POST /issues). "Sin movimiento" se mide contra el último
+    movimiento registrado, porque el simulador corre en tiempo simulado."""
+    with db.tx() as conn:
+        kpis = conn.execute(
+            """SELECT
+                 (SELECT COUNT(*) FROM part_availability a JOIN parts p USING (part_id)
+                   WHERE p.active AND a.available <= 0)::int,
+                 (SELECT COUNT(*) FROM shortages WHERE status = 'open')::int,
+                 (SELECT COUNT(*) FROM reorder_suggestions WHERE status = 'open')::int,
+                 (SELECT COUNT(*) FROM purchase_receipts WHERE match_status = 'unmatched')::int,
+                 (SELECT COUNT(*) FROM parts WHERE active)::int"""
+        ).fetchone()
+        # Costo promedio ponderado de las entradas por pieza, en la moneda de su última entrada
+        # (no se convierte entre monedas).
+        value_rows = conn.execute(
+            """WITH main AS (
+                 SELECT DISTINCT ON (part_id) part_id, currency FROM movements
+                  WHERE movement_type = 'receipt' AND currency IS NOT NULL AND unit_cost IS NOT NULL
+                  ORDER BY part_id, occurred_at DESC, movement_id DESC),
+               cost AS (
+                 SELECT m.part_id, m.currency, SUM(mv.qty * mv.unit_cost) / SUM(mv.qty) AS avg_cost
+                   FROM main m JOIN movements mv
+                     ON mv.part_id = m.part_id AND mv.currency = m.currency
+                    AND mv.movement_type = 'receipt' AND mv.unit_cost IS NOT NULL
+                  GROUP BY m.part_id, m.currency)
+               SELECT c.currency, ROUND(SUM(GREATEST(a.on_hand, 0) * c.avg_cost), 2)::text
+                 FROM cost c JOIN part_availability a USING (part_id)
+                GROUP BY c.currency ORDER BY c.currency"""
+        ).fetchall()
+        top = conn.execute(
+            """WITH d AS (SELECT part_id, SUM(required_qty) AS demand FROM needs
+                           WHERE part_id IS NOT NULL AND required_qty IS NOT NULL GROUP BY part_id),
+                    m AS (SELECT part_id,
+                                 -SUM(qty) FILTER (WHERE movement_type = 'issue') AS issued,
+                                 SUM(qty) FILTER (WHERE movement_type = 'receipt') AS received
+                            FROM movements GROUP BY part_id)
+               SELECT p.part_id, p.sku, p.name, COALESCE(d.demand, 0)::int, COALESCE(m.issued, 0)::int,
+                      COALESCE(m.received, 0)::int, a.on_hand
+                 FROM parts p JOIN part_availability a USING (part_id)
+                 LEFT JOIN d USING (part_id) LEFT JOIN m USING (part_id)
+                WHERE COALESCE(d.demand, 0) + COALESCE(m.issued, 0) > 0
+                ORDER BY COALESCE(d.demand, 0) + COALESCE(m.issued, 0) DESC, p.part_id LIMIT 10"""
+        ).fetchall()
+        idle = conn.execute(
+            f"""SELECT p.part_id, p.sku, p.name, a.on_hand,
+                       to_char(MAX(mv.occurred_at) AT TIME ZONE 'UTC', {ISO_UTC})
+                  FROM parts p JOIN part_availability a USING (part_id)
+                  JOIN movements mv USING (part_id)
+                 WHERE a.on_hand > 0
+                 GROUP BY p.part_id, p.sku, p.name, a.on_hand
+                HAVING MAX(mv.occurred_at) < (SELECT MAX(occurred_at) FROM movements) - make_interval(days => %s)
+                 ORDER BY MAX(mv.occurred_at), p.part_id LIMIT 10""",
+            (IDLE_DAYS,),
+        ).fetchall()
+        weeks = conn.execute(
+            """WITH d AS (SELECT date_trunc('week', updated_at) AS week, SUM(required_qty) AS demand FROM needs
+                           WHERE required_qty IS NOT NULL GROUP BY 1),
+                    i AS (SELECT date_trunc('week', occurred_at) AS week, -SUM(qty) AS issued FROM movements
+                           WHERE movement_type = 'issue' GROUP BY 1),
+                    r AS (SELECT date_trunc('week', occurred_at) AS week, SUM(qty) AS received FROM movements
+                           WHERE movement_type = 'receipt' GROUP BY 1),
+                    -- todas las semanas entre la primera y la última, aunque alguna no tenga datos
+                    s AS (SELECT generate_series(MIN(week), MAX(week), interval '1 week') AS week
+                            FROM (SELECT week FROM d UNION SELECT week FROM i UNION SELECT week FROM r) x)
+               SELECT to_char(s.week, 'YYYY-MM-DD'), COALESCE(d.demand, 0)::int, COALESCE(i.issued, 0)::int,
+                      COALESCE(r.received, 0)::int
+                 FROM s LEFT JOIN d USING (week) LEFT JOIN i USING (week) LEFT JOIN r USING (week)
+                ORDER BY s.week"""
+        ).fetchall()
+        consumer = conn.execute(
+            f"""SELECT (SELECT COUNT(*) FROM processed_events)::int,
+                       (SELECT to_char(MAX(processed_at) AT TIME ZONE 'UTC', {ISO_UTC}) FROM processed_events),
+                       (SELECT COUNT(*) FROM pending_events WHERE next_retry_at <> 'infinity')::int,
+                       (SELECT COUNT(*) FROM pending_events WHERE next_retry_at = 'infinity')::int,
+                       (SELECT COUNT(*) FROM outbox WHERE published_at IS NULL)::int,
+                       (SELECT to_char(MIN(occurred_at) AT TIME ZONE 'UTC', {ISO_UTC})
+                          FROM outbox WHERE published_at IS NULL)"""
+        ).fetchone()
+
+    series = [{"week": w, "demand": d, "issued": i, "received": r} for w, d, i, r in weeks]
+    recent = [s["demand"] + s["issued"] for s in series[-FORECAST_WEEKS:]]
+    projection = []
+    if recent:
+        avg = round(sum(recent) / len(recent))
+        last = date.fromisoformat(series[-1]["week"])
+        projection = [{"week": (last + timedelta(weeks=n)).isoformat(), "demand": avg}
+                      for n in range(1, FORECAST_WEEKS + 1)]
+    return {
+        "kpis": {"parts_out_of_stock": kpis[0], "open_shortages": kpis[1], "open_suggestions": kpis[2],
+                 "unmatched_receipts": kpis[3], "active_parts": kpis[4],
+                 "inventory_value": [{"currency": c, "amount": v} for c, v in value_rows]},
+        "rotation": {
+            "top": [{"part_id": r[0], "sku": r[1], "name": r[2], "demand": r[3], "issued": r[4], "received": r[5],
+                     "on_hand": r[6]} for r in top],
+            "idle": [{"part_id": r[0], "sku": r[1], "name": r[2], "on_hand": r[3], "last_movement_at": r[4]}
+                     for r in idle],
+            "idle_days": IDLE_DAYS,
+        },
+        "forecast": {"weeks": series, "projection": projection,
+                     "method": f"promedio de las últimas {FORECAST_WEEKS} semanas (demanda + salidas)"},
+        "consumer": {"processed": consumer[0], "last_processed_at": consumer[1], "pending": consumer[2],
+                     "exhausted": consumer[3], "outbox_unpublished": consumer[4],
+                     "oldest_unpublished_at": consumer[5]},
+    }

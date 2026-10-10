@@ -29,9 +29,12 @@ services:
       timeout: 5s
       retries: 20
 
-  # API HTTP (puerto 8000). No lee Redpanda: consulta y opera sobre Postgres.
+  # API HTTP (puerto 8000) y pantallas en /ui. No lee Redpanda: consulta y opera sobre Postgres.
+  # La imagen se construye desde la raíz porque también compila frontend/.
   backend:
-    build: ./backend
+    build: &backend-build
+      context: .
+      dockerfile: backend/Dockerfile
     image: inventory-backend
     environment:
       DATABASE_URL: postgresql://inv:inv@postgres:5432/inventory
@@ -43,11 +46,28 @@ services:
       postgres:
         condition: service_healthy
 
+  # La misma API y pantallas por HTTPS (certificado autofirmado de la imagen), para el celular:
+  # la cámara solo abre en HTTPS. Abrir https://<ip-de-la-pc>:8443/ui/ y aceptar el aviso una vez.
+  # Las pruebas de contrato siguen usando el :8000 en HTTP.
+  backend-https:
+    build: *backend-build
+    image: inventory-backend
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8443",
+              "--ssl-keyfile", "/certs/key.pem", "--ssl-certfile", "/certs/cert.pem"]
+    environment:
+      DATABASE_URL: postgresql://inv:inv@postgres:5432/inventory
+    ports:
+      - "8443:8443"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # Consumidor: lee los tópicos del taller, actualiza Postgres y publica los stock.* en inventory.events.
   # La API necesita que esté corriendo (el publicador de avisos vive aquí). Debe haber UNO solo.
   # Si la base está vacía (primer arranque o reconstrucción) relee todo desde el inicio, catálogo primero.
   consumer:
-    build: ./backend
+    build: *backend-build
     image: inventory-backend
     command: ["python", "-m", "app.consumer"]
     environment:
