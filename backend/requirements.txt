@@ -1,3 +1,4 @@
 fastapi>=0.115
 uvicorn[standard]>=0.34
 psycopg[binary,pool]>=3.2
+confluent-kafka>=2.6
