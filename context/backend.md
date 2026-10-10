@@ -1,6 +1,8 @@
 # Backend: contexto y qué hay que hacer
 
-Python 3.12 + FastAPI + Postgres + `confluent-kafka`, en `backend/`. Es la parte que más
+Python 3.12 + FastAPI + Postgres (`psycopg`) + `confluent-kafka` (para el consumidor), en
+`backend/`. Los ejemplos de `db/manejo de variables back y front.md` están en TypeScript,
+pero sus reglas aplican igual. Es la parte que más
 puntos da: **50 de 100** salen de las pruebas de contrato (libro mayor 25, integración 25).
 Reglas exactas: `kit/contract/README.md`. Si algo contradice al PDF, gana el contrato.
 

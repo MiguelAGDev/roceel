@@ -1,0 +1,41 @@
+# Todo el proyecto con un comando: el kit (Redpanda, Console, simulador) + Postgres + backend.
+#
+#   docker compose up -d --build
+#
+# El schema (db/schema.sql) solo se carga cuando el volumen de Postgres está vacío.
+# Si lo cambias:  docker compose down -v   y vuelve a levantar.
+
+include:
+  - kit/docker-compose.yml
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: inv
+      POSTGRES_PASSWORD: inv
+      POSTGRES_DB: inventory
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "inv", "-d", "inventory"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://inv:inv@postgres:5432/inventory
+      KAFKA_BROKERS: redpanda:9092
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
