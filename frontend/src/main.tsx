@@ -39,6 +39,7 @@ const NAV = [
   { to: "/tablero", label: "Tablero", Icon: IconDashboard },
   { to: "/almacen", label: "Almacén", Icon: IconWarehouse },
   { to: "/ordenes", label: "Órdenes", Icon: IconOrder },
+  { to: "/kardex", label: "Kardex", Icon: IconHistory },
 ];
 
 function App() {
@@ -67,6 +68,7 @@ function App() {
             <Route path="/almacen" element={<Almacen />} />
             <Route path="/ordenes" element={<Orden />} />
             <Route path="/ordenes/:code" element={<Orden />} />
+            <Route path="/kardex" element={<Kardex />} />
             <Route path="/kardex/:partId" element={<Kardex />} />
             <Route path="*" element={<div className="empty"><h1>Página no encontrada</h1><p><Link to="/">Ir al inicio</Link></p></div>} />
           </Routes>
