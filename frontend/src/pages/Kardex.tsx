@@ -1,85 +1,16 @@
 // Kardex de una pieza: saldo total y por ubicación, política mín/máx y movimientos con saldo corrido.
-import { useEffect, useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import { api, catalog, fmtDateTime, fmtQty, fmtSigned, MOVEMENT_LABEL, partLabel, useApi, type LedgerEntry } from "../api";
-
-import { IconAdvisor, IconBack, IconHistory } from "../components/icons";
-import { Async, Badge, ErrorBox, Loading, StockBadges, Tag, PartTag } from "../components/ui";
+import { openAdvisor } from "../components/Advisor";
+import { IconAdvisor, IconBack } from "../components/icons";
+import { Async, Badge, ErrorBox, Loading, StockBadges, Tag } from "../components/ui";
 import { Kpi } from "../components/charts";
 
 const PAGE = 50;
 
-/** `#/kardex` lista las piezas para elegir una; `#/kardex/:partId` muestra su kardex. */
 export default function Kardex() {
-  const { partId } = useParams();
-  return partId === undefined ? <KardexIndex /> : <KardexPart partId={Number(partId)} />;
-}
-
-function KardexIndex() {
-  const [params, setParams] = useSearchParams();
-  const q = params.get("q") ?? "";
-  const [text, setText] = useState(q);
-
-  useEffect(() => {
-    const t = window.setTimeout(() => {
-      if (text.trim() === q) return;
-      setParams(text.trim() ? { q: text.trim() } : {}, { replace: true });
-    }, 250);
-    return () => window.clearTimeout(t);
-  }, [text, q, setParams]);
-
-  const parts = useApi((s) => api.parts(q, s), [q], { pollMs: 15_000 });
-
-  return (
-    <>
-      <div className="page-head">
-        <div>
-          <h1>Kardex</h1>
-          <p className="muted">Elige una pieza para ver sus movimientos y su saldo por ubicación</p>
-        </div>
-      </div>
-      <section className="panel" aria-label="Piezas">
-        <div className="panel-pad" style={{ borderBottom: "1px solid var(--line)" }}>
-          <div className="field" style={{ maxWidth: 420 }}>
-            <label htmlFor="kardex-q" className="field"><span>Buscar pieza</span></label>
-            <input id="kardex-q" className="input" type="search" value={text} placeholder="Nombre, SKU o número de pieza"
-              autoFocus onChange={(e) => setText(e.target.value)} />
-          </div>
-        </div>
-        <Async state={parts} empty={<div>Ninguna pieza coincide con “{q}”</div>}>
-          {(items) => (
-            <div className="table-wrap">
-              <table className="table stackable">
-                <thead>
-                  <tr>
-                    <th scope="col">Pieza</th>
-                    <th scope="col">Etiqueta</th>
-                    <th scope="col" className="num">Existencia</th>
-                    <th scope="col" className="num">Disponible</th>
-                    <th scope="col"><span className="sr-only">Acción</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((p) => (
-                    <tr key={p.part_id}>
-                      <td className="name" data-label="Pieza"><Link to={`/kardex/${p.part_id}`}>{p.name}</Link></td>
-                      <td data-label="Etiqueta"><PartTag part={p} link={false} /></td>
-                      <td className="num" data-label="Existencia">{fmtQty(p.on_hand)}</td>
-                      <td className="num" data-label="Disponible"><strong>{fmtQty(p.available)}</strong></td>
-                      <td data-label=""><Link className="btn" to={`/kardex/${p.part_id}`}><IconHistory />Ver kardex</Link></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Async>
-      </section>
-    </>
-  );
-}
-
-function KardexPart({ partId }: { partId: number }) {
+  const partId = Number(useParams().partId);
   const part = useApi((s) => api.part(partId, s), [partId], { pollMs: 10_000 });
 
   if (!Number.isInteger(partId)) return <div className="empty"><h1>Pieza no encontrada</h1></div>;
@@ -88,7 +19,7 @@ function KardexPart({ partId }: { partId: number }) {
       return (
         <div className="empty" role="alert">
           <h1>Pieza no encontrada</h1>
-          <p>No existe la pieza {partId}. <Link to="/kardex">Buscar otra pieza</Link></p>
+          <p>No existe la pieza {partId}. <Link to="/almacen?tab=existencias">Ir a existencias</Link></p>
         </div>
       );
     }
@@ -101,7 +32,7 @@ function KardexPart({ partId }: { partId: number }) {
     <>
       <div className="page-head">
         <div>
-          <Link to="/kardex" className="btn btn-quiet" style={{ paddingLeft: 0 }}><IconBack />Kardex</Link>
+          <Link to="/almacen?tab=existencias" className="btn btn-quiet" style={{ paddingLeft: 0 }}><IconBack />Existencias</Link>
           <h1 style={{ marginTop: 4 }}>{p.name}</h1>
           <div className="row" style={{ marginTop: 6 }}>
             <Tag large>{partLabel(p)}</Tag>
@@ -110,7 +41,7 @@ function KardexPart({ partId }: { partId: number }) {
           </div>
         </div>
         <div className="row">
-          <Link className="btn" to={`/asesor?pieza=${p.part_id}`}><IconAdvisor />Preguntar al Consejero</Link>
+          <button className="btn" onClick={openAdvisor}><IconAdvisor />Preguntar al Consejero</button>
           <Link className="btn" to={`/almacen?tab=faltantes&pieza=${p.part_id}`}>Ver faltantes</Link>
         </div>
       </div>

@@ -89,14 +89,16 @@ React 18 + TypeScript + Vite en [`frontend/`](frontend). La imagen del backend l
   certificado autofirmado. Con el celular en la misma red Wi‑Fi, abrir `https://<ip-de-la-pc>:8443/ui/` y aceptar el
   aviso una vez (vuelve a pedirlo tras cada rebuild). Si Windows bloquea el puerto, permitir el 8443 en el firewall.
   Si la cámara falla, Piso siempre deja teclear el código o buscar la pieza.
-- **Rutas:** `#/piso` (Retirar · Transferir · Contar), `#/tablero`, `#/almacen`, `#/ordenes/<código>`, `#/kardex/<part_id>`,
-  `#/asesor` (opcional `?pieza=<id>` u `?orden=<código>`).
+- **Rutas:** `#/piso` (Retirar · Transferir · Contar), `#/tablero`, `#/almacen`, `#/ordenes/<código>`, `#/kardex/<part_id>`.
 - **Rutas extra de la API** que usan (el contrato permite agregarlas): `GET /parts?q=`, `GET /parts/{id}`,
   `GET /parts/{id}/policy`, `GET /scan/{código}`, `GET /locations`, `GET /work-orders`, `GET /dashboard`,
   `POST /advisor`.
 - **Asesor "El Consejero" (opcional):** un agente con Gemini (`gemini-3.1-flash-lite`) y personalidad
   maquiavélica que explica los números y aconseja (qué comprar primero, a qué orden darle la última pieza, qué
-  inventario está muerto). Solo lee: en cada pregunta recibe los datos de ese momento y nunca ejecuta movimientos.
+  inventario está muerto). Es una ventana flotante (botón abajo a la derecha) en todas las pantallas; en el kardex
+  o en una orden pregunta sobre esa pieza u orden. Cada respuesta trae botones que llevan a la pantalla donde se
+  hace lo recomendado (p. ej. Retirar con orden, pieza y cantidad ya puestas) y preguntas para seguir. Solo lee:
+  en cada pregunta recibe los datos de ese momento y nunca ejecuta movimientos.
   Para encenderlo, crear un `.env` en la raíz (git lo ignora) con `GEMINI_API_KEY=<tu key>` y volver a levantar.
   Sin key todo funciona igual y solo el asesor responde 503. El modelo se cambia con `GEMINI_MODEL`.
 

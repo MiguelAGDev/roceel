@@ -5,6 +5,7 @@ import {
   api, ApiError, catalog, errorMessage, fmtDate, fmtDateTime, fmtMoney, fmtQty, partLabel, UNMATCHED_REASON_LABEL, useApi,
   type Movement, type PartSummary, type UnmatchedReceipt,
 } from "../api";
+import { openAdvisor } from "../components/Advisor";
 import { IconAdvisor, IconAlert, IconCheck, IconLink, IconX } from "../components/icons";
 import PartSearch from "../components/PartSearch";
 import { Async, Badge, PartTag, StockBadges, Tag } from "../components/ui";
@@ -29,7 +30,7 @@ export default function Almacen() {
           <h1>Almacén</h1>
           <p className="muted">Lo que falta, lo que hay que comprar y lo que hay en existencia</p>
         </div>
-        <Link to="/asesor" className="btn"><IconAdvisor />Preguntar al Consejero</Link>
+        <button className="btn" onClick={openAdvisor}><IconAdvisor />Preguntar al Consejero</button>
       </div>
       <div className="tabs" role="tablist" aria-label="Secciones del almacén">
         {TABS.map((t) => {

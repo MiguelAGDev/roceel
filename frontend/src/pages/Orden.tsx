@@ -6,6 +6,7 @@ import {
   api, DEPARTMENT_LABEL, fmtDate, fmtQty, ORDER_CODE, stageLabel, useApi,
   type MaterialLine, type WorkOrderSummary,
 } from "../api";
+import { openAdvisor } from "../components/Advisor";
 import { IconAdvisor, IconAlert, IconCheck, IconOut, IconSearch } from "../components/icons";
 import { Async, Badge, ErrorBox, Loading, Tag } from "../components/ui";
 
@@ -198,7 +199,7 @@ function OrderDetail({ code }: { code: string }) {
         <div className="row">
           {missing > 0 && <Badge tone="danger"><IconAlert />{missing} con faltante</Badge>}
           {done > 0 && <Badge tone="ok"><IconCheck />{done} entregada{done === 1 ? "" : "s"}</Badge>}
-          <Link to={`/asesor?orden=${encodeURIComponent(code)}`} className="btn"><IconAdvisor />Preguntar al Consejero</Link>
+          <button className="btn" onClick={openAdvisor}><IconAdvisor />Preguntar al Consejero</button>
           <Link to={`/almacen?tab=faltantes&orden=${encodeURIComponent(code)}`} className="btn">Ver faltantes</Link>
         </div>
       </div>
